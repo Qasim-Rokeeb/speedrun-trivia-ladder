@@ -1,0 +1,21 @@
+{
+  "name": "speedrun-trivia-ladder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "test": "gamemode check src/game/rules.ts && vitest run",
+    "check": "gamemode check src/game/rules.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flayerlabs/gamemode-client": "^0.3.1",
+    "@flayerlabs/gamemode-spec": "^0.3.1"
+  },
+  "devDependencies": {
+    "@flayerlabs/gamemode-cli": "^0.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.8"
+  }
+}

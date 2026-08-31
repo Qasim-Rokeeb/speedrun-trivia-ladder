@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Game Mode"
+  short_description: "Build secure creator games with the SDK"
+  default_prompt: "Use $build-game-mode to build or change this Flaunch Game Mode and verify its rules."
