@@ -197,7 +197,7 @@
       select option { background: var(--bg-elevated); }
       input[readonly] { opacity: 0.5; cursor: not-allowed; }
 
-      /* ===== TASK 4: CORRECT ANSWER OPTION TILES ===== */
+      /* ===== CORRECT ANSWER OPTION TILES ===== */
       .options-grid {
         display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
       }
@@ -211,8 +211,8 @@
         overflow: hidden;
       }
       .option-tile:hover { border-color: rgba(255,255,255,0.2); }
-      /* When the radio inside is checked, style the tile */
-      .option-tile:has(.correct-radio:checked) {
+      /* .selected is toggled by JS when the radio inside is checked */
+      .option-tile.selected {
         border-color: var(--success);
         background: var(--success-bg);
         box-shadow: 0 0 0 1px var(--success), 0 0 16px var(--success-glow);
@@ -230,7 +230,7 @@
         color: var(--text-muted); flex-shrink: 0;
         transition: all 0.15s;
       }
-      .option-tile:has(.correct-radio:checked) .option-key {
+      .option-tile.selected .option-key {
         background: var(--success);
         border-color: var(--success);
         color: #0a0a0f;
@@ -238,14 +238,13 @@
       .option-tile input[type="text"] {
         border: none; background: transparent; padding: 0;
         font-size: 14px; flex: 1;
-        box-shadow: none;
+        box-shadow: none; outline: none;
+        color: var(--text-primary);
       }
-      .option-tile input[type="text"]:focus {
-        border: none; box-shadow: none;
-      }
+      .option-tile input[type="text"]:focus { border: none; box-shadow: none; }
       /* The hidden radio */
       .correct-radio { display: none; }
-      /* Correct badge shown when checked */
+      /* Correct badge shown when tile is selected */
       .option-correct-badge {
         display: none;
         font-family: var(--font-mono); font-size: 9px; font-weight: 700;
@@ -254,14 +253,12 @@
         border: 1px solid var(--success-border);
         border-radius: 999px; white-space: nowrap; flex-shrink: 0;
       }
-      .option-tile:has(.correct-radio:checked) .option-correct-badge { display: inline-block; }
+      .option-tile.selected .option-correct-badge { display: inline-block; }
       .options-hint {
         font-size: 12px; color: var(--text-muted); margin-top: 8px;
         display: flex; align-items: center; gap: 6px;
       }
-      .options-hint::before {
-        content: '✓'; color: var(--success); font-weight: 700;
-      }
+      .options-hint::before { content: '✓'; color: var(--success); font-weight: 700; }
 
       /* ===== BUTTONS ===== */
       .btn {
@@ -502,7 +499,7 @@
 
             <div class="btn-group">
               <button type="submit" class="btn btn-primary">Add Question</button>
-              <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-form').reset(); document.getElementById('add-form-error').style.display='none';">Clear</button>
+              <button type="button" id="clear-form-btn" class="btn btn-secondary">Clear</button>
               <button type="button" id="generate-sample-btn" class="btn btn-secondary">Generate Test Pack</button>
             </div>
           </form>

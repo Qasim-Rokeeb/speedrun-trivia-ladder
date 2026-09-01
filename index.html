@@ -538,33 +538,40 @@
 
       /* ===== LEADERBOARD ===== */
       .leaderboard {
-        position: sticky; top: calc(var(--nav-h) + 24px); padding: 22px;
-        max-height: calc(100vh - var(--nav-h) - 48px); overflow-y: auto;
-        margin-top: 24px;
+        position: sticky;
+        top: calc(var(--nav-h) + 20px);
+        padding: 20px;
+        max-height: calc(100vh - var(--nav-h) - 40px);
+        overflow-y: auto;
+        margin-top: 20px;
         background: var(--bg-glass);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border: 1px solid var(--border-medium);
         border-radius: var(--radius);
         box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+        /* Smooth scroll within the panel */
+        scroll-behavior: smooth;
       }
       .leaderboard h3 {
         font-family: var(--font-mono); font-size: 11px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 0.16em;
-        color: var(--text-secondary); margin-bottom: 6px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(192,132,252,0.3);
+        color: var(--text-secondary);
+        padding-bottom: 12px; margin-bottom: 0;
+        border-bottom: 1px solid rgba(192,132,252,0.25);
         display: flex; align-items: center; gap: 8px;
       }
+      /* Live dot before the heading text */
       .leaderboard h3::before {
-        content: ''; width: 8px; height: 8px; border-radius: 50%;
+        content: ''; width: 7px; height: 7px; border-radius: 50%;
         background: var(--tier2); flex-shrink: 0;
         box-shadow: 0 0 6px var(--tier2-glow);
+        animation: dotPing 2.5s ease-in-out infinite;
       }
       .led-meta {
         display: flex; justify-content: space-between;
         font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
-        padding-bottom: 12px; margin-bottom: 12px;
+        padding: 10px 0 10px; margin-bottom: 10px;
         border-bottom: 1px solid var(--border);
       }
       .round-countdown { color: var(--text-secondary); }
@@ -572,9 +579,9 @@
       .standings { list-style: none; display: grid; gap: 5px; }
       .standings li {
         display: flex; align-items: center; gap: 10px;
-        padding: 9px 11px; border-radius: 4px;
+        padding: 9px 10px; border-radius: 4px;
         background: var(--bg-surface); border-left: 3px solid transparent;
-        transition: all 0.15s;
+        transition: background 0.15s;
       }
       .standings li.rank-1 { border-left-color: var(--gold); background: rgba(251,191,36,0.04); }
       .standings li.rank-1 .rank { color: var(--gold); font-weight: 700; }
@@ -583,14 +590,20 @@
       .standings li.rank-2 .rank { color: var(--silver); }
       .standings li.rank-3 { border-left-color: var(--bronze); }
       .standings li.rank-3 .rank { color: var(--bronze); }
-      .standings li.me { background: rgba(192,132,252,0.06); border-left-color: var(--tier2); }
-      .standings .rank { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
-      .standings .name { flex: 1; font-size: 13px; font-weight: 500; }
-      .standings .led-score { font-family: var(--font-mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-      .standings .led-score em { font-style: normal; font-size: 9px; color: var(--text-muted); margin-left: 3px; }
+      .standings li.me { background: rgba(192,132,252,0.07); border-left-color: var(--tier2); }
+      .standings .rank {
+        font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
+        width: 18px; text-align: center; font-variant-numeric: tabular-nums; flex-shrink: 0;
+      }
+      .standings .name { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .standings .led-score {
+        font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+        font-variant-numeric: tabular-nums; flex-shrink: 0;
+      }
+      .standings .led-score em { font-style: normal; font-size: 9px; color: var(--text-muted); margin-left: 2px; }
       .standings .empty {
-        color: var(--text-muted); font-size: 13px; padding: 20px 12px; text-align: center;
-        background: rgba(148,163,184,0.03); border: 1px dashed rgba(148,163,184,0.15);
+        color: var(--text-muted); font-size: 13px; padding: 20px 10px; text-align: center;
+        background: rgba(148,163,184,0.03); border: 1px dashed rgba(148,163,184,0.12);
         border-radius: 4px; line-height: 1.6;
       }
 
@@ -652,98 +665,113 @@
 
       /* ── 1100px: slim columns ── */
       @media (max-width: 1100px) {
-        .layout { grid-template-columns: 80px minmax(0,1fr) 268px; }
-        .main-stage { padding: 40px 24px 40px 12px; }
+        .layout { grid-template-columns: 80px minmax(0,1fr) 260px; }
+        .main-stage { padding: 40px 20px 40px 12px; }
+        .leaderboard { padding: 16px; }
       }
 
-      /* ── 1023px: hide leaderboard column, float it as panel ── */
+      /* ── 1023px: 2-col layout, leaderboard as collapsible side panel ── */
       @media (max-width: 1023px) {
         .layout { grid-template-columns: 68px 1fr; }
         .main-stage { padding: 24px 28px 40px; }
         .leaderboard {
           position: fixed;
-          right: 14px; top: calc(var(--nav-h) + 12px);
-          width: 264px; margin: 0;
-          max-height: calc(100vh - var(--nav-h) - 24px);
-          z-index: 100;
-          box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+          right: 0; top: var(--nav-h);
+          width: 256px; margin: 0;
+          max-height: calc(100vh - var(--nav-h));
+          border-radius: var(--radius) 0 0 var(--radius);
+          border-right: none;
+          z-index: 90;
+          box-shadow: -4px 0 32px rgba(0,0,0,0.5);
+          transform: translateX(calc(100% - 36px));
+          transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
         }
+        .leaderboard[data-open="true"] { transform: translateX(0); }
+        .leaderboard h3 { cursor: pointer; user-select: none; }
+        /* Pull-tab icon on the exposed left edge */
+        .leaderboard::before {
+          content: "\22A1";
+          position: absolute;
+          left: 0; top: 50%; transform: translate(-100%, -50%);
+          width: 24px; padding: 10px 5px;
+          background: var(--bg-glass);
+          border: 1px solid var(--border-medium);
+          border-right: none;
+          border-radius: 6px 0 0 6px;
+          font-size: 12px; color: var(--tier2);
+          text-align: center; line-height: 1;
+          backdrop-filter: blur(12px);
+          cursor: pointer;
+        }
+        .leaderboard[data-open="true"]::before { display: none; }
       }
 
       /* ── 900px: single-column, horizontal spine, bottom-sheet leaderboard ── */
       @media (max-width: 900px) {
         .layout { grid-template-columns: 1fr; }
 
-        /* Spine becomes a horizontal progress strip */
         .ladder-spine {
           position: sticky;
-          top: var(--nav-h);          /* pins below the nav bar */
-          height: auto;
-          width: 100%;
-          flex-direction: row;
-          justify-content: center;
-          border-right: none;
-          border-bottom: 1px solid var(--border-subtle);
-          padding: 9px 16px;
-          z-index: 20;                /* above main content, below nav */
-          background: rgba(10,10,15,0.9);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          top: var(--nav-h);
+          height: auto; width: 100%;
+          flex-direction: row; justify-content: center;
+          border-right: none; border-bottom: 1px solid var(--border-subtle);
+          padding: 8px 16px;
+          z-index: 20;
+          background: rgba(10,10,15,0.92);
+          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         }
         .ladder-spine-inner { flex-direction: row; gap: 5px; padding: 0; }
         .spine-rung { width: 100%; height: 5px; flex: 1; max-width: 36px; }
         .spine-rung-num, .spine-tier-label, .spine-tier-sep { display: none; }
-        .spine-rung .climber-dot { right: 50%; top: -9px; transform: translateX(50%); }
+        .spine-rung .climber-dot { right: 50%; top: -8px; transform: translateX(50%); }
         .ladder-spine::before { display: none; }
 
-        .main-stage {
-          /* Account for nav bar + spine strip (≈34px) + bottom sheet handle (≈54px) */
-          padding: 20px 16px 80px;
-          min-height: auto;
-          justify-content: flex-start;
-        }
+        .main-stage { padding: 20px 16px 80px; min-height: auto; justify-content: flex-start; }
         .stat-cards { grid-template-columns: repeat(4, 1fr); gap: 8px; }
 
-        /* ── Bottom-sheet leaderboard ── */
+        /* Reset the side-panel styles, then apply bottom-sheet */
         .leaderboard {
-          position: fixed;
-          left: 0; right: 0; bottom: 0;
-          top: auto;                  /* override the float rule above */
+          position: fixed !important;
+          left: 0; right: 0; bottom: 0; top: auto !important;
           width: 100%; margin: 0;
-          max-height: 46vh;
-          border-radius: 14px 14px 0 0;
+          max-height: 48vh;
+          border-radius: 16px 16px 0 0;
+          border-right: 1px solid var(--border-medium);
           border-bottom: none;
           z-index: 100;
-          box-shadow: 0 -4px 40px rgba(0,0,0,0.6);
+          box-shadow: 0 -6px 40px rgba(0,0,0,0.6);
           overflow-y: auto;
-          transform: translateY(calc(100% - 54px));
+          padding: 0;
+          transform: translateY(calc(100% - 56px)) !important;
           transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .leaderboard[data-open="true"] { transform: translateY(0); }
+        .leaderboard[data-open="true"] { transform: translateY(0) !important; }
+        .leaderboard::before { display: none !important; }
+
+        /* Sticky header inside the sheet with drag handle */
         .leaderboard h3 {
-          cursor: pointer; user-select: none;
-          position: sticky; top: 0;
-          /* Needs relative positioning so the ::after drag handle positions correctly */
           position: relative;
+          cursor: pointer; user-select: none;
           background: var(--bg-glass);
           backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-          z-index: 1;
-          padding: 18px 22px 12px;  /* extra top padding for the drag handle */
-          margin: -22px -22px 0;    /* bleed to card edges */
+          padding: 20px 20px 12px;
+          margin: 0; border-radius: 16px 16px 0 0;
+          border-bottom: 1px solid rgba(192,132,252,0.2);
+          writing-mode: horizontal-tb;
         }
-        /* Drag handle pill */
         .leaderboard h3::after {
           content: '';
           position: absolute;
           top: 8px; left: 50%; transform: translateX(-50%);
-          width: 36px; height: 4px;
+          width: 40px; height: 4px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.2);
+          background: rgba(255,255,255,0.22);
           pointer-events: none;
         }
-        /* Override the ::before dot — pull it inside the new padding */
-        .leaderboard h3::before { margin-right: 8px; }
-        .leaderboard .standings { padding-bottom: 20px; }
+        .leaderboard .led-meta { margin: 0 20px; padding: 10px 0; }
+        .leaderboard .standings { padding: 0 20px 24px; }
+        .leaderboard .btn-buy { margin: 0 20px 24px; width: calc(100% - 40px); }
 
         .intro { padding: 24px 20px 28px; max-width: 100%; }
         .end   { padding: 24px 20px 28px; max-width: 100%; }
@@ -751,7 +779,6 @@
 
       /* ── 640px: phones ── */
       @media (max-width: 640px) {
-        /* Creator nav: keep full label visible, just tighten padding */
         .creator-nav { padding: 0 12px; }
         .creator-nav-btn { font-size: 10px; padding: 5px 12px 5px 9px; gap: 5px; }
 
@@ -779,7 +806,7 @@
         .answer-tile { padding: 14px 14px; font-size: 14px; }
         .tier-badge { font-size: 10px; padding: 4px 10px; }
         .rung-counter { font-size: 11px; }
-        .keyboard-hint { display: none; }   /* too small on phone — waste of space */
+        .keyboard-hint { display: none; }
         .timer-number { font-size: 22px; min-width: 50px; }
 
         .score-hud .score-value { font-size: 22px; }
@@ -790,10 +817,12 @@
         .run-stat { padding: 12px 6px; }
         .run-stat-val { font-size: 15px; }
 
-        .leaderboard { max-height: 50vh; }
+        .leaderboard { max-height: 52vh; }
+        .standings .name { font-size: 12px; }
+        .standings .led-score { font-size: 11px; }
       }
 
-      /* ── 400px: small phones ── */
+      /* ── 400px: very small phones ── */
       @media (max-width: 400px) {
         .main-stage { padding: 12px 12px 80px; }
         .intro { padding: 16px 14px 20px; }
@@ -803,6 +832,7 @@
         .rule-pill { font-size: 9px; padding: 3px 8px; }
         .ladder-spine { padding: 7px 12px; }
         .creator-nav-btn svg { width: 12px; height: 12px; }
+        .leaderboard { max-height: 55vh; }
       }
     </style>
   </head>

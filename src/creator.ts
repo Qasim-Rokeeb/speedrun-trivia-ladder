@@ -98,18 +98,31 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     const tab = (btn as HTMLElement).dataset.tab;
     if (!tab) return;
-
-    // Hide all, show this
     document.querySelectorAll('.tab-content').forEach((el) => el.classList.remove('active'));
     document.getElementById(tab)?.classList.add('active');
-
-    // Update button states
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
-
-    // Refresh UI for certain tabs
     if (tab === 'manage') refreshQuestionsList();
     if (tab === 'freshness') refreshFreshnessPanel();
+  });
+});
+
+// ============ Option Tile Selection (correct-answer toggle) ============
+// Uses a JS-driven .selected class instead of CSS :has() for broad browser support.
+function updateOptionTileStates(): void {
+  document.querySelectorAll<HTMLElement>('.option-tile').forEach((tile) => {
+    const radio = tile.querySelector<HTMLInputElement>('.correct-radio');
+    tile.classList.toggle('selected', !!radio?.checked);
+  });
+}
+
+document.querySelectorAll<HTMLElement>('.option-tile').forEach((tile) => {
+  tile.addEventListener('click', () => {
+    const radio = tile.querySelector<HTMLInputElement>('.correct-radio');
+    if (radio) {
+      radio.checked = true;
+      updateOptionTileStates();
+    }
   });
 });
 
@@ -160,11 +173,19 @@ document.getElementById('add-form')?.addEventListener('submit', (e) => {
 
   // Reset form
   (document.getElementById('add-form') as HTMLFormElement)?.reset();
+  // Clear option tile selected state
+  updateOptionTileStates();
   // Refresh count in tab
   for (const id of ['question-count', 'question-count-2']) {
     const el = document.getElementById(id);
     if (el) el.textContent = pack.questions.length.toString();
   }
+});
+
+document.getElementById('clear-form-btn')?.addEventListener('click', () => {
+  (document.getElementById('add-form') as HTMLFormElement)?.reset();
+  document.getElementById('add-form-error')!.style.display = 'none';
+  updateOptionTileStates();
 });
 
 function setSampleFeedbackVisible(visible: boolean): void {
