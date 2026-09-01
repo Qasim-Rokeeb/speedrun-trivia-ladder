@@ -2,12 +2,205 @@ import { createMockRoom, type Snapshot } from '@flayerlabs/gamemode-client';
 import { rules, TOTAL_RUNGS, type Action, type Config, type PlayerView, type PublicView } from './game/rules.js';
 import { demoPack } from './game/packs/demo.js';
 
-const config: Config = demoPack;
 const MY_ID = '0xyou';
-const room = createMockRoom(rules, { config, player: MY_ID, lobbyMs: 800, roundMs: 180_000 });
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('the page needs an #app element');
 const rootEl: HTMLElement = app;
+
+// Module-level state (set after async load)
+let config: Config = demoPack;
+let room: ReturnType<typeof createMockRoom> | null = null;
+
+/**
+ * Validates that a Config object has the required structure for the game.
+ * Returns true if valid, false otherwise.
+ */
+function isValidConfig(obj: unknown): obj is Config {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const cfg = obj as Record<string, unknown>;
+  
+  // Check required top-level fields
+  if (typeof cfg.title !== 'string' || !cfg.title) return false;
+  if (typeof cfg.packId !== 'string' || !cfg.packId) return false;
+  if (!Array.isArray(cfg.questions)) return false;
+  if (cfg.questions.length === 0) return false;
+  
+  // Validate each question
+  for (const q of cfg.questions) {
+    if (typeof q !== 'object' || q === null) return false;
+    const question = q as Record<string, unknown>;
+    if (typeof question.id !== 'string' || !question.id) return false;
+    const tier = (question.tier as unknown) as number;
+    if (![1, 2, 3].includes(tier)) return false;
+    if (typeof question.prompt !== 'string' || !question.prompt) return false;
+    if (!Array.isArray(question.options) || question.options.length !== 4) return false;
+    if (question.options.some((opt) => typeof opt !== 'string')) return false;
+    if (typeof question.correct !== 'number' || question.correct < 0 || question.correct > 3) return false;
+  }
+  
+  // Validate tierSpecs
+  if (typeof cfg.tierSpecs !== 'object' || cfg.tierSpecs === null) return false;
+  const specs = cfg.tierSpecs as Record<string, unknown>;
+  for (const tier of [1, 2, 3]) {
+    const spec = specs[tier] as Record<string, unknown> | undefined;
+    if (!spec || typeof spec.points !== 'number' || typeof spec.budgetMs !== 'number') return false;
+  }
+  
+  // Validate rungsPerTier
+  if (!Array.isArray(cfg.rungsPerTier) || cfg.rungsPerTier.length !== 3) return false;
+  if (cfg.rungsPerTier.some((r) => typeof r !== 'number' || r <= 0)) return false;
+  
+  // Validate numeric fields
+  if (typeof cfg.completionBonus !== 'number' || cfg.completionBonus < 0) return false;
+  if (typeof cfg.speedBonusCap !== 'number' || cfg.speedBonusCap <= 0) return false;
+  
+  return true;
+}
+
+/**
+ * Load custom pack from URL parameter (?pack=url), preview mode, or use demo pack.
+ * Returns a promise resolving to the Config to use.
+ */
+async function loadConfig(): Promise<Config> {
+  const params = new URLSearchParams(window.location.search);
+  
+  // Check for preview mode (creator testing)
+  if (params.has('preview')) {
+    const preview = sessionStorage.getItem('previewConfig');
+    if (preview) {
+      try {
+        const config = JSON.parse(preview);
+        if (isValidConfig(config)) {
+          console.log(`Loaded preview pack: ${config.packId}`);
+          sessionStorage.removeItem('previewConfig'); // Clean up
+          return config;
+        }
+      } catch (err) {
+        console.warn('Failed to load preview pack:', err);
+      }
+    }
+    return demoPack;
+  }
+  
+  const packUrl = params.get('pack');
+  
+  if (!packUrl) {
+    // No custom pack: use demo
+    return demoPack;
+  }
+  
+  try {
+    // Fetch the custom pack
+    const response = await fetch(packUrl);
+    if (!response.ok) {
+      console.warn(`Failed to load pack from ${packUrl}: HTTP ${response.status}`);
+      return demoPack;
+    }
+    
+    const data = await response.json();
+    
+    // Validate the pack structure
+    if (!isValidConfig(data)) {
+      console.warn(`Custom pack from ${packUrl} failed validation. Using demo pack.`, data);
+      return demoPack;
+    }
+    
+    console.log(`Loaded custom pack: ${data.packId} with ${data.questions.length} questions`);
+    return data;
+  } catch (err) {
+    console.warn(`Error loading custom pack from ${packUrl}:`, err);
+    return demoPack;
+  }
+}
+
+/**
+ * Initialize the game with the loaded config.
+ */
+async function initGame(): Promise<void> {
+  config = await loadConfig();
+  room = createMockRoom(rules, { config, player: MY_ID, lobbyMs: 800, roundMs: 180_000 });
+
+  // Set up all event listeners after room is created
+  rootEl.addEventListener('click', (ev) => {
+    const target = ev.target as HTMLElement;
+    const start = target.closest('[data-start]');
+    if (start) {
+      lockAnswer = false;
+      void room!.send({ kind: 'start' } satisfies Action);
+      return;
+    }
+    const buy = target.closest('[data-buy]');
+    if (buy) {
+      void room!.economy.buy(room!.economy.available());
+      return;
+    }
+    const ans = target.closest('[data-answer]') as HTMLElement | null;
+    if (ans && !lockAnswer) {
+      const chosen = Number(ans.dataset.answer);
+      const qid = ans.dataset.qid ?? '';
+      lockAnswer = true;
+      ans.classList.add('picked');
+      for (const b of rootEl.querySelectorAll<HTMLElement>('[data-answer]')) b.style.pointerEvents = 'none';
+      if (renderTimer) clearTimeout(renderTimer);
+      renderTimer = setTimeout(() => render(), 320);
+      void room!.send({ kind: 'answer', questionId: qid, chosen } satisfies Action);
+    }
+  });
+
+  room!.subscribe((snapshot) => {
+    lockAnswer = false;
+    const snap = snapshot as Snapshot<PublicView, PlayerView>;
+    if (renderTimer) {
+      latest = snap;
+      return;
+    }
+    render(snap);
+  });
+  room!.economy.subscribe(() => {
+    if (renderTimer) return;
+    render();
+  });
+
+  // Live timer tick
+  const clock = setInterval(() => {
+    if (!latest) return;
+    const pv = latest.playerView;
+    if (pv?.status === 'active' && pv.deadline !== null) {
+      const timerEl = rootEl.querySelector<HTMLElement>('.timer-number');
+      const fillEl = rootEl.querySelector<HTMLElement>('.timer-bar-fill');
+      const t = countdownParts(pv.deadline);
+      if (timerEl && t) {
+        timerEl.textContent = (t.ms / 1000).toFixed(1);
+        timerEl.className = 'timer-number ' + timerClass(t.ms);
+      }
+      if (fillEl && t) fillEl.style.width = t.pct + '%';
+    }
+    const round = rootEl.querySelector<HTMLElement>('.led-meta span');
+    if (round && latest) round.textContent = `${Math.max(0, Math.ceil((latest.publicView.closesAt - room!.now()) / 1_000))}s left`;
+    const buyBtn = rootEl.querySelector<HTMLButtonElement>('[data-buy]');
+    if (buyBtn && latest) {
+      const bal = room!.economy.available();
+      buyBtn.disabled = bal <= 0n;
+      buyBtn.textContent = `Claim ${(Number(bal) / 1e18).toFixed(4)} ETH ➜`;
+    }
+  }, 100);
+
+  window.addEventListener('pagehide', () => {
+    clearInterval(clock);
+    room!.dispose();
+  });
+
+  // Initial render
+  render();
+}
+
+// Start the game
+initGame().catch((err) => {
+  console.error('Failed to initialize game:', err);
+  rootEl.innerHTML = `<div class="neon-card glass" style="padding:40px;max-width:600px;margin:40px auto"><h2>Error Loading Game</h2><p>${esc(String(err))}</p><p>Using demo pack instead...</p></div>`;
+  // Retry with demo pack
+  window.location.search = '';
+});
 
 function tierKey(t: number | null): 1 | 2 | 3 {
   if (t === 1 || t === 2 || t === 3) return t;
@@ -70,7 +263,7 @@ function countdownParts(deadline: number | null): { ms: number; pct: number; bud
   if (!latest || deadline === null) return null;
   const pv = latest.playerView;
   const budgetMs = pv?.tier ? config.tierSpecs[tierKey(pv.tier)].budgetMs : 8000;
-  const ms = Math.max(0, deadline - room.now());
+  const ms = Math.max(0, deadline - room!.now());
   const pct = budgetMs > 0 ? Math.min(100, (ms / budgetMs) * 100) : 0;
   return { ms, pct, budgetMs };
 }
@@ -85,8 +278,8 @@ function render(snapshot = latest): void {
   if (!snapshot) return;
   latest = snapshot;
   const { publicView: pub, playerView: you } = snapshot;
-  const balance = room.economy.current();
-  const roundLeft = Math.max(0, Math.ceil((pub.closesAt - room.now()) / 1_000));
+  const balance = room!.economy.current();
+  const roundLeft = Math.max(0, Math.ceil((pub.closesAt - room!.now()) / 1_000));
   const standings = pub.standings
     .map((s, i) => {
       const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
@@ -107,8 +300,30 @@ function render(snapshot = latest): void {
   switch (you?.status) {
     case 'unjoined':
     case 'idle': {
+      // Get freshness info from config
+      const packMetadata = localStorage.getItem('creatorPack');
+      let freshnessBadge = '';
+      if (packMetadata && config.packId !== 'demo') {
+        try {
+          const pack = JSON.parse(packMetadata);
+          if (pack.packId === config.packId) {
+            const now = Date.now();
+            const updated = pack.lastUpdated || 0;
+            const daysSince = Math.floor((now - updated) / (1000 * 60 * 60 * 24));
+            if (daysSince === 0) {
+              freshnessBadge = '<div class="freshness-badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 8px 12px; border-radius: 2px; font-size: 12px; margin-bottom: 16px;">✨ Freshly updated today</div>';
+            } else if (daysSince < 7) {
+              freshnessBadge = `<div class="freshness-badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 8px 12px; border-radius: 2px; font-size: 12px; margin-bottom: 16px;">🔄 Updated ${daysSince}d ago</div>`;
+            }
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+      
       main = `
         <section class="neon-card glass intro" style="--neon:var(--tier2);--neon-glow:var(--tier2-glow)">
+          ${freshnessBadge}
           <div class="eyebrow">${esc(pub.title)}</div>
           <h1><span class="accent">Speedrun</span><br/>Trivia Ladder</h1>
           <p class="sub">Climb a 10-rung ladder of escalating questions before the clock runs out. Answer fast and right to earn more — one wrong answer drops your tier, never the run.</p>
@@ -185,71 +400,3 @@ function render(snapshot = latest): void {
       </aside>
     </div>`;
 }
-
-rootEl.addEventListener('click', (ev) => {
-  const target = ev.target as HTMLElement;
-  const start = target.closest('[data-start]');
-  if (start) {
-    lockAnswer = false;
-    void room.send({ kind: 'start' } satisfies Action);
-    return;
-  }
-  const buy = target.closest('[data-buy]');
-  if (buy) {
-    void room.economy.buy(room.economy.available());
-    return;
-  }
-  const ans = target.closest('[data-answer]') as HTMLElement | null;
-  if (ans && !lockAnswer) {
-    const chosen = Number(ans.dataset.answer);
-    const qid = ans.dataset.qid ?? '';
-    lockAnswer = true;
-    ans.classList.add('picked');
-    for (const b of rootEl.querySelectorAll<HTMLElement>('[data-answer]')) b.style.pointerEvents = 'none';
-    if (renderTimer) clearTimeout(renderTimer);
-    renderTimer = setTimeout(() => render(), 320);
-    void room.send({ kind: 'answer', questionId: qid, chosen } satisfies Action);
-  }
-});
-
-room.subscribe((snapshot) => {
-  lockAnswer = false;
-  if (renderTimer) {
-    latest = snapshot;
-    return;
-  }
-  render(snapshot);
-});
-room.economy.subscribe(() => {
-  if (renderTimer) return;
-  render();
-});
-
-// Live timer tick
-const clock = setInterval(() => {
-  if (!latest) return;
-  const pv = latest.playerView;
-  if (pv?.status === 'active' && pv.deadline !== null) {
-    const timerEl = rootEl.querySelector<HTMLElement>('.timer-number');
-    const fillEl = rootEl.querySelector<HTMLElement>('.timer-bar-fill');
-    const t = countdownParts(pv.deadline);
-    if (timerEl && t) {
-      timerEl.textContent = (t.ms / 1000).toFixed(1);
-      timerEl.className = 'timer-number ' + timerClass(t.ms);
-    }
-    if (fillEl && t) fillEl.style.width = t.pct + '%';
-  }
-  const round = rootEl.querySelector<HTMLElement>('.led-meta span');
-  if (round && latest) round.textContent = `${Math.max(0, Math.ceil((latest.publicView.closesAt - room.now()) / 1_000))}s left`;
-  const buyBtn = rootEl.querySelector<HTMLButtonElement>('[data-buy]');
-  if (buyBtn && latest) {
-    const bal = room.economy.available();
-    buyBtn.disabled = bal <= 0n;
-    buyBtn.textContent = `Claim ${(Number(bal) / 1e18).toFixed(4)} ETH ➜`;
-  }
-}, 100);
-
-window.addEventListener('pagehide', () => {
-  clearInterval(clock);
-  room.dispose();
-});

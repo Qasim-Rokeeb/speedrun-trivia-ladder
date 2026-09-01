@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Creator Authoring — Speedrun Trivia Ladder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg-void: #0a0a0f;
+        --bg-surface: #111118;
+        --bg-elevated: #1a1a24;
+        --border: #26262e;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --success: #4ade80;
+        --danger: #f87171;
+        --warning: #facc15;
+        --tier1: #00f0ff;
+        --tier2: #c084fc;
+        --tier3: #fb923c;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-void);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+      .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+      .header { margin-bottom: 40px; }
+      .header h1 { font-size: 28px; margin-bottom: 8px; }
+      .header p { color: var(--text-secondary); font-size: 14px; }
+      
+      .tabs {
+        display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+      }
+      .tab-btn {
+        background: none; border: none; color: var(--text-muted); cursor: pointer;
+        padding: 8px 16px; font-weight: 600; border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+      }
+      .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--tier2); }
+      .tab-btn:hover { color: var(--text-primary); }
+      
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+      
+      .form-group { margin-bottom: 20px; }
+      label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+      input[type="text"],
+      input[type="number"],
+      textarea,
+      select {
+        width: 100%; padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border);
+        color: var(--text-primary); font-family: inherit; border-radius: 4px; font-size: 14px;
+      }
+      textarea { resize: vertical; min-height: 80px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+      
+      .options-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+      }
+      .option-wrapper { position: relative; }
+      .option-wrapper input { padding-right: 40px; }
+      .correct-toggle {
+        position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+        width: 24px; height: 24px; cursor: pointer; accent-color: var(--success);
+      }
+      
+      .tier-badge {
+        display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+        border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase;
+        border: 1px solid;
+      }
+      .tier-1 { background: rgba(0, 240, 255, 0.1); border-color: var(--tier1); color: var(--tier1); }
+      .tier-2 { background: rgba(192, 132, 252, 0.1); border-color: var(--tier2); color: var(--tier2); }
+      .tier-3 { background: rgba(251, 146, 60, 0.1); border-color: var(--tier3); color: var(--tier3); }
+      
+      .btn {
+        padding: 10px 20px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer;
+        transition: all 0.2s; font-size: 14px;
+      }
+      .btn-primary { background: var(--tier2); color: #0a0a0f; }
+      .btn-primary:hover { opacity: 0.9; }
+      .btn-secondary { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
+      .btn-secondary:hover { border-color: var(--tier2); }
+      .btn-danger { background: var(--danger); color: white; }
+      .btn-sm { padding: 6px 12px; font-size: 12px; }
+      
+      .questions-list {
+        display: grid; gap: 12px;
+      }
+      .question-card {
+        background: var(--bg-elevated); border: 1px solid var(--border); padding: 16px; border-radius: 4px;
+      }
+      .question-card-header {
+        display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;
+      }
+      .question-card-title { font-weight: 600; max-width: 600px; }
+      .question-card-tier { font-size: 12px; }
+      .question-card-actions { display: flex; gap: 8px; }
+      .question-card-options { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+      
+      .freshness-panel {
+        background: var(--bg-elevated); border: 1px solid var(--border); padding: 20px; border-radius: 4px;
+        margin-bottom: 24px;
+      }
+      .freshness-row {
+        display: flex; justify-content: space-between; align-items: center; padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .freshness-row:last-child { border-bottom: none; }
+      .pool-indicator {
+        display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
+        font-size: 12px; font-weight: 600;
+      }
+      .pool-ok { background: rgba(74, 222, 128, 0.1); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.3); }
+      .pool-warn { background: rgba(250, 204, 21, 0.1); color: var(--warning); border: 1px solid rgba(250, 204, 21, 0.3); }
+      .pool-danger { background: rgba(248, 113, 113, 0.1); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); }
+      
+      .publish-panel {
+        background: var(--bg-elevated); border: 2px solid var(--tier2); padding: 20px; border-radius: 4px;
+        text-align: center;
+      }
+      .publish-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      
+      .csv-input { display: none; }
+      .upload-area {
+        border: 2px dashed var(--border); padding: 20px; text-align: center; border-radius: 4px;
+        cursor: pointer; transition: all 0.2s;
+      }
+      .upload-area:hover { border-color: var(--tier2); background: rgba(192, 132, 252, 0.05); }
+      
+      .alert {
+        padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 14px;
+      }
+      .alert-success { background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); color: var(--success); }
+      .alert-warn { background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.3); color: var(--warning); }
+      .alert-error { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); color: var(--danger); }
+      
+      .preview-link {
+        display: inline-block; margin-top: 16px; padding: 12px 24px; background: var(--tier1);
+        color: #0a0a0f; text-decoration: none; border-radius: 4px; font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Creator Authoring</h1>
+        <p>Build and manage your trivia pack. Questions are stored locally in your browser.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="add">Add Questions</button>
+        <button class="tab-btn" data-tab="bulk">Bulk Import (CSV)</button>
+        <button class="tab-btn" data-tab="manage">Manage Questions</button>
+        <button class="tab-btn" data-tab="freshness">Freshness & Publish</button>
+      </div>
+
+      <!-- Add Single Question -->
+      <div id="add" class="tab-content active">
+        <form id="add-form">
+          <div class="form-group">
+            <label>Question Text</label>
+            <textarea id="prompt" placeholder="e.g., What is your project?" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Tier (Difficulty)</label>
+            <select id="tier" required>
+              <option value="1">Tier 1 - Warm-up (Broadly known)</option>
+              <option value="2">Tier 2 - Climb (Moderately specific)</option>
+              <option value="3">Tier 3 - Summit (Deep knowledge)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Answer Options</label>
+            <div class="options-grid">
+              <div class="option-wrapper">
+                <input type="text" class="option" placeholder="Option A" required />
+                <input type="radio" class="correct-toggle" name="correct" value="0" />
+              </div>
+              <div class="option-wrapper">
+                <input type="text" class="option" placeholder="Option B" required />
+                <input type="radio" class="correct-toggle" name="correct" value="1" />
+              </div>
+              <div class="option-wrapper">
+                <input type="text" class="option" placeholder="Option C" required />
+                <input type="radio" class="correct-toggle" name="correct" value="2" />
+              </div>
+              <div class="option-wrapper">
+                <input type="text" class="option" placeholder="Option D" required />
+                <input type="radio" class="correct-toggle" name="correct" value="3" />
+              </div>
+            </div>
+            <small style="color: var(--text-muted); margin-top: 8px; display: block;">Click the radio button to mark the correct answer</small>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Add Question</button>
+          <button type="button" class="btn btn-secondary" style="margin-left: 8px;" onclick="document.getElementById('add-form').reset()">Clear</button>
+        </form>
+      </div>
+
+      <!-- Bulk Import -->
+      <div id="bulk" class="tab-content">
+        <h3 style="margin-bottom: 16px;">Import from CSV</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+          Format: <code style="background: var(--bg-elevated); padding: 2px 4px;">prompt,tier,optionA,optionB,optionC,optionD,correctIndex</code>
+        </p>
+        <div class="upload-area" id="drop-zone">
+          Click to upload CSV or drag & drop
+        </div>
+        <input type="file" id="csv-input" class="csv-input" accept=".csv" />
+        <div id="import-alert" style="margin-top: 16px;"></div>
+      </div>
+
+      <!-- Manage Questions -->
+      <div id="manage" class="tab-content">
+        <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <h3>Questions (<span id="question-count">0</span> total)</h3>
+          <button class="btn btn-danger btn-sm" onclick="if (confirm('Delete all questions?')) { localStorage.removeItem('creatorPack'); location.reload(); }">Clear All</button>
+        </div>
+        <div id="questions-list" class="questions-list" style="min-height: 100px; color: var(--text-muted);">
+          No questions yet. Add some from the "Add Questions" tab.
+        </div>
+      </div>
+
+      <!-- Freshness & Publish -->
+      <div id="freshness" class="tab-content">
+        <div class="freshness-panel">
+          <h3 style="margin-bottom: 16px;">Pool Depth</h3>
+          <div id="pool-status" style="min-height: 120px;"></div>
+        </div>
+
+        <div class="freshness-panel">
+          <h3 style="margin-bottom: 16px;">Pack Metadata</h3>
+          <div class="form-group">
+            <label>Pack Title (shown in lobby)</label>
+            <input type="text" id="pack-title" placeholder="How well do you know [Your Project]?" />
+          </div>
+          <div class="form-group">
+            <label>Pack ID (for seeding, must be stable)</label>
+            <input type="text" id="pack-id" placeholder="e.g., my-project-v1" />
+          </div>
+          <div class="form-group">
+            <label>Rounds Played (informational, bumps when you publish)</label>
+            <input type="number" id="rounds-played" value="0" readonly style="opacity: 0.6;" />
+          </div>
+        </div>
+
+        <div class="publish-panel">
+          <h3 style="margin-bottom: 12px;">Ready to Publish?</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+            Generate a JSON file to host on your server or share with Flaunch.
+          </p>
+          <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 12px;">
+            <button id="preview-btn" class="btn btn-secondary" style="font-size: 14px;">🎮 Test Playthrough</button>
+            <button id="publish-btn" class="btn btn-primary" style="font-size: 14px;">Generate JSON</button>
+          </div>
+          <div id="publish-status" style="margin-top: 16px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/creator.ts"></script>
+  </body>
+</html>

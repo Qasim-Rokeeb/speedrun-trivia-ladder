@@ -39,8 +39,12 @@ and Flaunch-specific questions across three tiers.
 
 ## Question packs (how a creator drops in their own questions)
 
-The game runs off a `Config`/pack — any creator can supply their own questions with **no code
-changes**. This is what makes the game reusable across many launches. A pack is built from:
+**No code changes needed.** Creators supply their own questions via a custom pack JSON hosted on any
+web server. Load it with `?pack=https://your-cdn.com/my-pack.json` and the game uses your questions.
+
+For step-by-step instructions and best practices, see **[CUSTOM_PACK_GUIDE.md](./CUSTOM_PACK_GUIDE.md)**.
+
+A pack is built from:
 
 ```ts
 interface Question {
@@ -85,10 +89,21 @@ question-order divergence.
 
 ## Submit to Flaunch
 
-1. `pnpm exec vite build` produces the static `dist/` bundle.
-2. Zip it and upload at `flaunch.gg/game-mode/create` with **name** "Speedrun Trivia Ladder",
-   **category** "Knowledge", and a description noting it is the first Knowledge-category entry, its
-   server-side validation, and its content-pluggable pack system.
+**Ready to submit?** See the step-by-step guide:
+
+- **[SUBMISSION_GUIDE.md](./SUBMISSION_GUIDE.md)** — Exact instructions for packaging and uploading
+- **[SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md)** — Verify all requirements are met
+- **[SUBMISSION_ANALYSIS.md](./SUBMISSION_ANALYSIS.md)** — Detailed analysis against Flaunch requirements
+
+**Quick checklist before upload:**
+1. `pnpm test` passes (all 13 tests)
+2. `pnpm typecheck` passes (no errors)
+3. `pnpm exec vite build` succeeds
+4. Create ZIP: `zip -r speedrun-trivia-ladder.zip dist/`
+5. Upload at `flaunch.gg/game-mode/create` with:
+   - **Name:** Speedrun Trivia Ladder
+   - **Category:** Knowledge
+   - **Description:** See template in SUBMISSION_GUIDE.md
 
 ## Connect a live gate
 

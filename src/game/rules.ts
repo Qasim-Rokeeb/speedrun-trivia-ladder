@@ -72,8 +72,8 @@ export interface PlayerRun {
   options: string[] | null;
   /** Question ids already used this run, so one run never repeats a question. */
   used: string[];
-  /** Raw answer trace [{questionId, chosen, at, right}] for forensics. */
-  trace: { questionId: string; chosen: number; at: number; right: boolean }[];
+  /** Raw answer trace [{questionId, chosen, at, right, points, speedBonus}] for forensics. */
+  trace: { questionId: string; chosen: number; at: number; right: boolean; points?: number; speedBonus?: number }[];
   /** Best single-run score across all replays this round. This drives allowance. */
   bestScore: number;
 }
@@ -237,6 +237,7 @@ function scoreAnswer(
   const spec = config.tierSpecs[tier];
 
   let questionScore = 0;
+  let speedBonus = 0;
   let penalty = run.penalty;
   if (right) {
     const budgetMs = spec.budgetMs;
@@ -245,6 +246,7 @@ function scoreAnswer(
     const fraction = budgetMs > 0 ? Math.min(1, timeRemaining / budgetMs) : 0;
     const multi = 1 + fraction * config.speedBonusCap;
     questionScore = Math.round(spec.points * multi);
+    speedBonus = questionScore - spec.points;
   } else {
     penalty = penalty + 1;
   }
@@ -258,7 +260,7 @@ function scoreAnswer(
     currentQuestion: null,
     options: null,
     used: [...run.used, questionId],
-    trace: [...run.trace, { questionId, chosen, at, right }],
+    trace: [...run.trace, { questionId, chosen, at, right, points: questionScore, speedBonus }],
   };
   return { run: advanced, right, questionScore, timedOut: false };
 }
@@ -483,15 +485,31 @@ export const rules = defineGame<Config, State, Event, Action, PublicView, Player
         options: null,
         completed: false,
         lastRight: null,
+        stats: { correctCount: 0, speedBonusTotal: 0, basePointsTotal: 0, finalTier: 1 },
       };
     }
-    const base = run.status === 'active' ? baseRungTier(state.config, run.rung) : null;
-    const tier = base === null ? null : effectiveTier(base, run.penalty);
+    const currentBase = run.status === 'active' ? baseRungTier(state.config, run.rung) : baseRungTier(state.config, Math.min(run.rung, TOTAL_RUNGS));
+    const currentTier = effectiveTier(currentBase, run.penalty);
+
+    let correctCount = 0;
+    let speedBonusTotal = 0;
+    let basePointsTotal = 0;
+
+    for (const t of run.trace) {
+      if (t.right) {
+        correctCount++;
+        const sb = t.speedBonus ?? 0;
+        const pts = t.points ?? 0;
+        speedBonusTotal += sb;
+        basePointsTotal += (pts - sb);
+      }
+    }
+
     return {
       status: run.status === 'idle' ? 'idle' : run.status === 'done' ? 'done' : 'active',
       rung: run.status === 'done' ? Math.min(run.rung, TOTAL_RUNGS) : run.rung,
       totalRungs: TOTAL_RUNGS,
-      tier,
+      tier: run.status === 'active' ? currentTier : null,
       runScore: run.runScore,
       bestScore: run.bestScore,
       deadline: run.deadline,
@@ -503,6 +521,12 @@ export const rules = defineGame<Config, State, Event, Action, PublicView, Player
       options: run.options,
       completed: run.completed,
       lastRight: run.trace.length ? run.trace[run.trace.length - 1]!.right : null,
+      stats: {
+        correctCount,
+        speedBonusTotal,
+        basePointsTotal,
+        finalTier: currentTier,
+      },
     };
   },
 
@@ -558,4 +582,10 @@ export interface PlayerView {
   options: string[] | null;
   completed: boolean;
   lastRight: boolean | null;
+  stats: {
+    correctCount: number;
+    speedBonusTotal: number;
+    basePointsTotal: number;
+    finalTier: number;
+  };
 }

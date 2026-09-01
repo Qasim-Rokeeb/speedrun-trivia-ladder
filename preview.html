@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Preview — Speedrun Trivia Ladder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg-void: #0a0a0f;
+        --bg-surface: #111118;
+        --bg-elevated: #1a1a24;
+        --bg-glass: rgba(17, 17, 24, 0.85);
+        --border: #26262e;
+        --border-subtle: rgba(255,255,255,0.06);
+        --border-medium: rgba(255,255,255,0.1);
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --tier1: #00f0ff;
+        --tier1-glow: rgba(0, 240, 255, 0.3);
+        --tier2: #c084fc;
+        --tier2-glow: rgba(192, 132, 252, 0.3);
+        --tier3: #fb923c;
+        --tier3-glow: rgba(251, 146, 60, 0.3);
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-void);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+
+      .preview-header {
+        background: linear-gradient(135deg, #c084fc 0%, #7c3aed 100%);
+        color: #0a0a0f;
+        padding: 16px;
+        text-align: center;
+        font-weight: 700;
+      }
+
+      #app {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 80px 1fr 280px;
+        min-height: 100vh;
+        max-width: 1200px;
+        margin: 0 auto;
+        align-items: start;
+      }
+
+      .ladder-spine {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 60px 0;
+        border-right: 1px solid var(--border-subtle);
+        background: rgba(10,10,15,0.6);
+        z-index: 10;
+      }
+
+      .ladder-spine-inner {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        align-items: center;
+        padding: 0 16px;
+      }
+
+      .spine-rung {
+        width: 48px;
+        height: 6px;
+        border-radius: 2px;
+        background: #1e293b;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .spine-rung.active {
+        background: var(--tier2);
+        box-shadow: 0 0 12px var(--tier2), 0 0 28px var(--tier2);
+      }
+
+      .main-stage {
+        padding: 40px 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+        justify-content: center;
+        min-height: 100vh;
+        min-width: 0;
+      }
+
+      .glass {
+        background: var(--bg-glass);
+        backdrop-filter: blur(16px) saturate(1.2);
+        -webkit-backdrop-filter: blur(16px) saturate(1.2);
+        border: 1px solid var(--border-medium);
+        border-radius: 4px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+
+      .neon-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+        padding: 32px 36px;
+        max-width: 640px;
+        width: 100%;
+      }
+
+      .neon-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 4px;
+        border: 1px solid var(--tier2);
+        box-shadow: 0 0 20px var(--tier2-glow), inset 0 0 20px var(--tier2-glow);
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
+      .neon-card > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .btn {
+        padding: 16px 40px;
+        background: linear-gradient(135deg, #c084fc 0%, #7c3aed 100%);
+        color: #0a0a0f;
+        border: none;
+        border-radius: 2px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        width: 100%;
+      }
+
+      .btn:hover { opacity: 0.9; }
+
+      .leaderboard {
+        position: sticky;
+        top: 40px;
+        padding: 24px;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        margin-top: 40px;
+      }
+
+      @media (max-width: 1023px) {
+        .layout {
+          grid-template-columns: 60px 1fr;
+        }
+        .ladder-spine {
+          width: 60px;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .ladder-spine {
+          width: 100%;
+          height: auto;
+          flex-direction: row;
+          justify-content: center;
+          border-right: none;
+          border-bottom: 1px solid var(--border-subtle);
+          padding: 10px 16px;
+        }
+        .leaderboard {
+          position: static;
+          width: 100%;
+          margin: 0;
+          max-height: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-header">
+      🎮 PREVIEW MODE — Test your pack before publishing
+    </div>
+    <div id="app"></div>
+    <script type="module">
+      // Load creator's pack from localStorage and inject into game
+      const creatorPack = localStorage.getItem('creatorPack');
+      if (!creatorPack) {
+        document.querySelector('#app').innerHTML = `
+          <div style="padding: 40px; text-align: center; max-width: 600px; margin: 60px auto;">
+            <h2 style="color: #f87171; margin-bottom: 16px;">No Pack Found</h2>
+            <p style="color: #94a3b8; margin-bottom: 24px;">Create questions in the <a href="/creator.html" style="color: #c084fc;">Creator Authoring</a> interface first.</p>
+            <a href="/creator.html" style="display: inline-block; padding: 12px 24px; background: #c084fc; color: #0a0a0f; text-decoration: none; border-radius: 4px; font-weight: 600;">Go to Creator</a>
+          </div>
+        `;
+      } else {
+        // Parse and validate pack
+        const pack = JSON.parse(creatorPack);
+        
+        // Build full Config with defaults
+        const config = {
+          title: pack.title,
+          packId: pack.packId,
+          questions: pack.questions,
+          completionBonus: 500,
+          speedBonusCap: 0.5,
+          rungsPerTier: [4, 4, 2],
+          tierSpecs: {
+            '1': { points: 100, budgetMs: 8000 },
+            '2': { points: 200, budgetMs: 7000 },
+            '3': { points: 400, budgetMs: 6000 },
+          },
+        };
+
+        // Store in sessionStorage so the game can access it
+        sessionStorage.setItem('previewConfig', JSON.stringify(config));
+
+        // Load game with ?preview=true
+        window.location.href = `/?preview=true`;
+      }
+    </script>
+  </body>
+</html>
