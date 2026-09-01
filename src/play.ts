@@ -548,7 +548,7 @@ function render(snapshot = latest): void {
     <div class="layout">
       ${ladderSpine(you?.status === 'active' ? you.rung : you?.status === 'done' ? TOTAL_RUNGS + 1 : 0)}
       <div class="main-stage">${main}</div>
-      <aside class="neon-card glass leaderboard">
+      <aside class="neon-card glass leaderboard" data-open="true">
         <h3>Leaderboard</h3>
         <div class="led-meta">
           <span class="round-countdown ${roundLeft <= 30 ? 'urgent' : ''}">${roundLeft}s left</span>
@@ -559,6 +559,28 @@ function render(snapshot = latest): void {
           Claim ${(Number(balance.availableWei) / 1e18).toFixed(4)} ETH ➜</button>
       </aside>
     </div>`;
+
+  const leaderboardEl = rootEl.querySelector<HTMLElement>('.leaderboard');
+  const leaderboardHeading = leaderboardEl?.querySelector('h3');
+  if (leaderboardEl && leaderboardHeading) {
+    const syncLeaderboardState = () => {
+      if (window.innerWidth <= 900) {
+        leaderboardEl.dataset.open = 'false';
+        return;
+      }
+      if (window.innerWidth <= 1023) {
+        leaderboardEl.dataset.open = 'true';
+      }
+    };
+
+    leaderboardHeading.onclick = () => {
+      const compact = window.innerWidth <= 1023;
+      if (!compact) return;
+      leaderboardEl.dataset.open = leaderboardEl.dataset.open === 'true' ? 'false' : 'true';
+    };
+    syncLeaderboardState();
+    window.addEventListener('resize', syncLeaderboardState, { once: false });
+  }
 
   // ── Task 2: Fade-in animation on screen change ────────────────────────
   const isNewScreen = screenKey !== prevScreen;

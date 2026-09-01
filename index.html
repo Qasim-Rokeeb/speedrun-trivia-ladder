@@ -667,7 +667,7 @@
       @media (max-width: 1100px) {
         .layout { grid-template-columns: 80px minmax(0,1fr) 260px; }
         .main-stage { padding: 40px 20px 40px 12px; }
-        .leaderboard { padding: 16px; }
+        .leaderboard { padding: 16px; max-height: calc(100vh - 80px); }
       }
 
       /* ── 1023px: 2-col layout, leaderboard as collapsible side panel ── */
@@ -730,7 +730,6 @@
         .main-stage { padding: 20px 16px 80px; min-height: auto; justify-content: flex-start; }
         .stat-cards { grid-template-columns: repeat(4, 1fr); gap: 8px; }
 
-        /* Reset the side-panel styles, then apply bottom-sheet */
         .leaderboard {
           position: fixed !important;
           left: 0; right: 0; bottom: 0; top: auto !important;
@@ -747,9 +746,9 @@
           transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .leaderboard[data-open="true"] { transform: translateY(0) !important; }
+        .leaderboard:not([data-open="true"]) { transform: translateY(calc(100% - 56px)) !important; }
         .leaderboard::before { display: none !important; }
 
-        /* Sticky header inside the sheet with drag handle */
         .leaderboard h3 {
           position: relative;
           cursor: pointer; user-select: none;
