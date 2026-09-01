@@ -346,6 +346,34 @@ function deleteQuestion(id: string): void {
 }
 
 // ============ Freshness Panel ============
+
+/**
+ * The recommended pool size per tier scales with rounds played.
+ * Every 5 rounds the target grows by 3 questions, nudging creators
+ * to keep feeding the pack as their launch gets popular.
+ * The hard publish gate stays at MIN_QUESTIONS_PER_TIER regardless.
+ */
+function recommendedPoolSize(roundsPlayed: number): number {
+  return MIN_QUESTIONS_PER_TIER + Math.floor(roundsPlayed / 5) * 3;
+}
+
+/** Switch to the Add Question tab and pre-select the given tier. */
+function switchToAddWithTier(tier: 1 | 2 | 3): void {
+  document.querySelectorAll('.tab-content').forEach((el) => el.classList.remove('active'));
+  document.getElementById('add')?.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+  document.querySelector('.tab-btn[data-tab="add"]')?.classList.add('active');
+  const tierSelect = document.getElementById('tier') as HTMLSelectElement | null;
+  if (tierSelect) {
+    tierSelect.value = String(tier);
+    // Focus the prompt textarea so the creator can start typing immediately
+    (document.getElementById('prompt') as HTMLTextAreaElement | null)?.focus();
+  }
+}
+
+// Expose for inline onclick handlers
+window.switchToAddWithTier = switchToAddWithTier;
+
 function refreshFreshnessPanel(): void {
   const pack = loadPack();
   const status = document.getElementById('pool-status')!;
@@ -355,42 +383,79 @@ function refreshFreshnessPanel(): void {
     counts[q.tier as 1 | 2 | 3]++;
   });
 
+  const recommended = recommendedPoolSize(pack.roundsPlayed);
+
   const tiers = [
-    { tier: 1, name: 'Tier 1 (Warm-up)', icon: '🔥' },
-    { tier: 2, name: 'Tier 2 (Climb)', icon: '⛰️' },
-    { tier: 3, name: 'Tier 3 (Summit)', icon: '🏔️' },
+    { tier: 1, name: 'Tier 1 — Warm-up', icon: '🔥' },
+    { tier: 2, name: 'Tier 2 — Climb',   icon: '⛰️' },
+    { tier: 3, name: 'Tier 3 — Summit',  icon: '🏔️' },
   ];
 
   status.innerHTML = tiers
     .map(({ tier, name, icon }) => {
       const count = counts[tier as 1 | 2 | 3];
-      const ok = count >= MIN_QUESTIONS_PER_TIER;
-      const poolClass = ok ? 'pool-ok' : count >= 3 ? 'pool-warn' : 'pool-bad';
-      const poolLabel = ok ? `${count}/${MIN_QUESTIONS_PER_TIER}` : count >= 3 ? `${count}/${MIN_QUESTIONS_PER_TIER} Thin` : `${count}/${MIN_QUESTIONS_PER_TIER} Low`;
+      const belowGate        = count < MIN_QUESTIONS_PER_TIER;
+      const belowRecommended = count < recommended && !belowGate;
+      const healthy          = !belowGate && !belowRecommended;
+
+      const poolClass = belowGate
+        ? (count >= 3 ? 'pool-warn' : 'pool-bad')
+        : belowRecommended ? 'pool-warn' : 'pool-ok';
+
+      const poolLabel = `${count} / ${recommended}`;
+
+      let meta: string;
+      let cta = '';
+
+      if (belowGate) {
+        const needed = MIN_QUESTIONS_PER_TIER - count;
+        meta = `Need ${needed} more to unlock publishing`;
+        cta = `<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="switchToAddWithTier(${tier})">+ Add Tier ${tier} questions →</button>`;
+      } else if (belowRecommended) {
+        const needed = recommended - count;
+        meta = `${needed} below recommended — players may see repeats after ${pack.roundsPlayed} rounds`;
+        cta = `<button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="switchToAddWithTier(${tier})">+ Add more Tier ${tier} questions →</button>`;
+      } else {
+        meta = pack.roundsPlayed === 0
+          ? 'Healthy — enough variation for random selection'
+          : `Healthy for ${pack.roundsPlayed} rounds played`;
+      }
+
       return `
         <div class="pool-row">
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="pool-row-label">${icon} ${name}</div>
-            <div class="pool-row-meta">${ok ? 'Healthy — enough variation for random selection' : count >= 3 ? 'Thin — add more for better variety' : 'Too few — add at least ' + (MIN_QUESTIONS_PER_TIER - count) + ' more'}</div>
+            <div class="pool-row-meta">${meta}</div>
+            ${cta}
           </div>
-          <span class="pool-indicator ${poolClass}">${poolLabel}</span>
+          <span class="pool-indicator ${poolClass}" style="align-self:flex-start;margin-left:16px">${poolLabel}</span>
         </div>
       `;
     })
     .join('');
 
-  // Update metadata
+  // Rounds-played nudge — shown when pool is healthy but starting to get stale
+  if (pack.roundsPlayed >= 5) {
+    const allHealthy = Object.values(counts).every((c) => c >= recommended);
+    if (!allHealthy) {
+      const nudge = document.createElement('div');
+      nudge.className = 'alert alert-warn';
+      nudge.style.marginTop = '16px';
+      nudge.innerHTML = `<span class="alert-icon">⚠</span><span>This pack has run <strong>${pack.roundsPlayed} rounds</strong>. Regular players may have seen most questions — consider adding new ones before your next launch.</span>`;
+      status.appendChild(nudge);
+    }
+  }
+
+  // Update metadata fields
   (document.getElementById('pack-title') as HTMLInputElement).value = pack.title;
   (document.getElementById('pack-id') as HTMLInputElement).value = pack.packId;
   (document.getElementById('rounds-played') as HTMLInputElement).value = pack.roundsPlayed.toString();
 
-  // Update publish button state
+  // Hard gate: publish only unlocked when every tier meets the minimum
   const canPublish = Object.values(counts).every((c) => c >= MIN_QUESTIONS_PER_TIER);
   const btn = document.getElementById('publish-btn') as HTMLButtonElement;
   btn.disabled = !canPublish;
-  if (!canPublish) {
-    btn.title = `Need at least ${MIN_QUESTIONS_PER_TIER} questions per tier`;
-  }
+  btn.title = canPublish ? '' : `Need at least ${MIN_QUESTIONS_PER_TIER} questions per tier to publish`;
 }
 
 // ============ Preview / Playtest ============
@@ -475,10 +540,10 @@ function escapeHtml(text: string): string {
 }
 
 // ============ Init ============
-// Expose deleteQuestion to window for onclick handlers
 declare global {
   interface Window {
     deleteQuestion: (id: string) => void;
+    switchToAddWithTier: (tier: 1 | 2 | 3) => void;
   }
 }
 
