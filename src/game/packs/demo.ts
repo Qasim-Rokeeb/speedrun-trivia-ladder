@@ -217,9 +217,14 @@ export const demoPack: Config = {
     {
       id: 't3q2',
       tier: 3,
-      prompt: 'Which of these is NOT one of Flaunch\'s four fair-distribution archetypes?',
-      options: ['Skill', 'Luck', 'Effort', 'Speed'],
-      correct: 3,
+      prompt: 'Why does Flaunch\'s Knowledge archetype specifically reward trivia over reflexes?',
+      options: [
+        'Trivia is cheaper to build than reflex games',
+        'It ensures the community that earns the launch curve allocation actually understands the project',
+        'Reflex games require hardware that most users lack',
+        'Knowledge games run faster on Base',
+      ],
+      correct: 1,
     },
     {
       id: 't3q3',

@@ -444,7 +444,7 @@ function render(snapshot = latest): void {
           <div class="rule-pills">
             <span class="rule-pill"><span class="pill-icon">🏔️</span>10 rungs · 3 tiers</span>
             <span class="rule-pill accent-t1"><span class="pill-icon">⏱</span>Speed bonus +${Math.round(config.speedBonusCap * 100)}%</span>
-            <span class="rule-pill accent-green"><span class="pill-icon">↻</span>Wrong = tier drop, not game over</span>
+            <span class="rule-pill accent-green"><span class="pill-icon">↻</span>Wrong = keep climbing, earn less</span>
             <span class="rule-pill accent-t2"><span class="pill-icon">🏅</span>+${config.completionBonus} completion bonus</span>
             ${freshnessBadge}
           </div>
