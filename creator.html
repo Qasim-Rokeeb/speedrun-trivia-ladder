@@ -8,266 +8,595 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
+      /* ===== SHARED TOKENS (mirror game page) ===== */
       :root {
         --bg-void: #0a0a0f;
         --bg-surface: #111118;
         --bg-elevated: #1a1a24;
+        --bg-glass: rgba(17, 17, 24, 0.9);
         --border: #26262e;
+        --border-medium: rgba(255,255,255,0.1);
         --text-primary: #f8fafc;
         --text-secondary: #94a3b8;
         --text-muted: #64748b;
         --success: #4ade80;
+        --success-bg: rgba(74,222,128,0.06);
+        --success-border: rgba(74,222,128,0.25);
+        --success-glow: rgba(74,222,128,0.3);
         --danger: #f87171;
+        --danger-bg: rgba(248,113,113,0.06);
+        --danger-border: rgba(248,113,113,0.25);
         --warning: #facc15;
+        --warning-bg: rgba(250,204,21,0.06);
+        --warning-border: rgba(250,204,21,0.25);
         --tier1: #00f0ff;
+        --tier1-glow: rgba(0,240,255,0.3);
+        --tier1-bg: rgba(0,240,255,0.05);
+        --tier1-border: rgba(0,240,255,0.2);
         --tier2: #c084fc;
+        --tier2-glow: rgba(192,132,252,0.3);
+        --tier2-bg: rgba(192,132,252,0.05);
+        --tier2-border: rgba(192,132,252,0.2);
         --tier3: #fb923c;
+        --tier3-glow: rgba(251,146,60,0.3);
+        --tier3-bg: rgba(251,146,60,0.05);
+        --tier3-border: rgba(251,146,60,0.2);
+        --font-display: 'JetBrains Mono', monospace;
+        --font-body: 'Inter', sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
       }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: var(--font-body);
         background: var(--bg-void);
         color: var(--text-primary);
         min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
       }
-      .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-      .header { margin-bottom: 40px; }
-      .header h1 { font-size: 28px; margin-bottom: 8px; }
-      .header p { color: var(--text-secondary); font-size: 14px; }
-      
+
+      /* ===== AMBIENT BACKGROUND (matches game page) ===== */
+      .vignette {
+        position: fixed; inset: 0; z-index: 0; pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+      }
+      .crt-overlay {
+        position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.2;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+      }
+      .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+      .particle {
+        position: absolute; width: 3px; height: 3px; border-radius: 50%;
+        background: var(--tier2); opacity: 0.1;
+        animation: particleDrift linear infinite;
+      }
+      @keyframes particleDrift {
+        0% { transform: translateY(0) translateX(0); opacity: 0; }
+        10% { opacity: 0.1; }
+        90% { opacity: 0.1; }
+        100% { transform: translateY(-100vh) translateX(30px); opacity: 0; }
+      }
+
+      /* ===== LAYOUT ===== */
+      .page-wrap {
+        position: relative; z-index: 2;
+        max-width: 860px; margin: 0 auto;
+        padding: calc(var(--nav-h) + 32px) 24px 80px;
+      }
+
+      /* ===== NAV BAR (matches game page) ===== */
+      :root { --nav-h: 44px; }
+      .site-nav {
+        position: fixed; top: 0; left: 0; right: 0;
+        height: var(--nav-h);
+        z-index: 500;
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0 16px;
+        background: rgba(10,10,15,0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      .site-nav .nav-brand {
+        font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--tier2);
+      }
+      .nav-back {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--text-secondary); text-decoration: none;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 999px;
+        padding: 5px 12px 5px 9px;
+        transition: all 0.15s;
+      }
+      .nav-back:hover { color: var(--tier2); border-color: var(--tier2-border); background: rgba(192,132,252,0.1); }
+      .nav-back svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.7; }
+
+      /* ===== HEADER ===== */
+      .header { margin-bottom: 36px; }
+      .header .eyebrow {
+        font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--tier2); margin-bottom: 10px;
+      }
+      .header h1 {
+        font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.4rem);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+        margin-bottom: 10px;
+      }
+      .header p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+
+      /* ===== TABS ===== */
       .tabs {
-        display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border);
-        padding-bottom: 12px;
+        display: flex; gap: 4px; margin-bottom: 24px;
+        background: var(--bg-surface); border: 1px solid var(--border);
+        border-radius: 6px; padding: 4px;
       }
       .tab-btn {
-        background: none; border: none; color: var(--text-muted); cursor: pointer;
-        padding: 8px 16px; font-weight: 600; border-bottom: 2px solid transparent;
-        transition: all 0.2s;
+        flex: 1; background: none; border: none; color: var(--text-muted); cursor: pointer;
+        padding: 9px 12px; font-weight: 600; font-size: 13px; border-radius: 4px;
+        transition: all 0.15s; white-space: nowrap;
       }
-      .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--tier2); }
-      .tab-btn:hover { color: var(--text-primary); }
-      
+      .tab-btn.active {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      }
+      .tab-btn:hover:not(.active) { color: var(--text-secondary); }
       .tab-content { display: none; }
       .tab-content.active { display: block; }
-      
-      .form-group { margin-bottom: 20px; }
-      label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+
+      /* ===== GLASS CARD ===== */
+      .card {
+        background: var(--bg-glass);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-medium);
+        border-radius: 6px;
+        padding: 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      }
+      .card-title {
+        font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--tier2); margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* ===== FORM ELEMENTS ===== */
+      .form-group { margin-bottom: 18px; }
+      label {
+        display: flex; align-items: center; gap: 6px;
+        font-weight: 600; margin-bottom: 7px; font-size: 13px;
+        color: var(--text-secondary);
+      }
+      label .required { color: var(--tier3); font-size: 11px; }
       input[type="text"],
       input[type="number"],
       textarea,
       select {
-        width: 100%; padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border);
-        color: var(--text-primary); font-family: inherit; border-radius: 4px; font-size: 14px;
+        width: 100%; padding: 10px 14px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        color: var(--text-primary); font-family: var(--font-body); border-radius: 4px;
+        font-size: 14px; transition: border-color 0.15s, box-shadow 0.15s;
+        outline: none;
       }
-      textarea { resize: vertical; min-height: 80px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
-      
+      input:focus, textarea:focus, select:focus {
+        border-color: var(--tier2);
+        box-shadow: 0 0 0 3px rgba(192,132,252,0.12);
+      }
+      textarea {
+        resize: vertical; min-height: 80px;
+        font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+      }
+      select option { background: var(--bg-elevated); }
+      input[readonly] { opacity: 0.5; cursor: not-allowed; }
+
+      /* ===== TASK 4: CORRECT ANSWER OPTION TILES ===== */
       .options-grid {
-        display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
       }
-      .option-wrapper { position: relative; }
-      .option-wrapper input { padding-right: 40px; }
-      .correct-toggle {
-        position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-        width: 24px; height: 24px; cursor: pointer; accent-color: var(--success);
+      .option-tile {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--bg-elevated);
+        transition: all 0.15s;
+        cursor: pointer;
+        overflow: hidden;
       }
-      
-      .tier-badge {
-        display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
-        border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase;
-        border: 1px solid;
+      .option-tile:hover { border-color: rgba(255,255,255,0.2); }
+      /* When the radio inside is checked, style the tile */
+      .option-tile:has(.correct-radio:checked) {
+        border-color: var(--success);
+        background: var(--success-bg);
+        box-shadow: 0 0 0 1px var(--success), 0 0 16px var(--success-glow);
       }
-      .tier-1 { background: rgba(0, 240, 255, 0.1); border-color: var(--tier1); color: var(--tier1); }
-      .tier-2 { background: rgba(192, 132, 252, 0.1); border-color: var(--tier2); color: var(--tier2); }
-      .tier-3 { background: rgba(251, 146, 60, 0.1); border-color: var(--tier3); color: var(--tier3); }
-      
+      .option-tile-inner {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px;
+      }
+      /* The key badge (A/B/C/D) */
+      .option-key {
+        font-family: var(--font-mono); font-size: 12px; font-weight: 800;
+        width: 26px; height: 26px; border-radius: 3px;
+        border: 1px solid var(--border);
+        display: grid; place-items: center;
+        color: var(--text-muted); flex-shrink: 0;
+        transition: all 0.15s;
+      }
+      .option-tile:has(.correct-radio:checked) .option-key {
+        background: var(--success);
+        border-color: var(--success);
+        color: #0a0a0f;
+      }
+      .option-tile input[type="text"] {
+        border: none; background: transparent; padding: 0;
+        font-size: 14px; flex: 1;
+        box-shadow: none;
+      }
+      .option-tile input[type="text"]:focus {
+        border: none; box-shadow: none;
+      }
+      /* The hidden radio */
+      .correct-radio { display: none; }
+      /* Correct badge shown when checked */
+      .option-correct-badge {
+        display: none;
+        font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+        letter-spacing: 0.1em; text-transform: uppercase;
+        color: var(--success); padding: 2px 7px;
+        border: 1px solid var(--success-border);
+        border-radius: 999px; white-space: nowrap; flex-shrink: 0;
+      }
+      .option-tile:has(.correct-radio:checked) .option-correct-badge { display: inline-block; }
+      .options-hint {
+        font-size: 12px; color: var(--text-muted); margin-top: 8px;
+        display: flex; align-items: center; gap: 6px;
+      }
+      .options-hint::before {
+        content: '✓'; color: var(--success); font-weight: 700;
+      }
+
+      /* ===== BUTTONS ===== */
       .btn {
-        padding: 10px 20px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer;
-        transition: all 0.2s; font-size: 14px;
+        font-family: var(--font-mono); font-weight: 700;
+        border: none; border-radius: 3px; cursor: pointer;
+        transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.08em;
+        font-size: 13px; padding: 10px 20px;
       }
-      .btn-primary { background: var(--tier2); color: #0a0a0f; }
-      .btn-primary:hover { opacity: 0.9; }
-      .btn-secondary { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
-      .btn-secondary:hover { border-color: var(--tier2); }
+      .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .btn-primary {
+        background: linear-gradient(135deg, #c084fc 0%, #7c3aed 100%);
+        color: #0a0a0f;
+        box-shadow: 0 0 16px rgba(192,132,252,0.25);
+      }
+      .btn-primary:hover:not(:disabled) {
+        box-shadow: 0 0 28px rgba(192,132,252,0.45);
+        transform: translateY(-1px);
+      }
+      .btn-secondary {
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        color: var(--text-primary);
+      }
+      .btn-secondary:hover:not(:disabled) { border-color: var(--tier2); }
       .btn-danger { background: var(--danger); color: white; }
-      .btn-sm { padding: 6px 12px; font-size: 12px; }
-      
-      .questions-list {
-        display: grid; gap: 12px;
-      }
-      .question-card {
-        background: var(--bg-elevated); border: 1px solid var(--border); padding: 16px; border-radius: 4px;
-      }
-      .question-card-header {
-        display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;
-      }
-      .question-card-title { font-weight: 600; max-width: 600px; }
-      .question-card-tier { font-size: 12px; }
-      .question-card-actions { display: flex; gap: 8px; }
-      .question-card-options { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
-      
-      .freshness-panel {
-        background: var(--bg-elevated); border: 1px solid var(--border); padding: 20px; border-radius: 4px;
-        margin-bottom: 24px;
-      }
-      .freshness-row {
-        display: flex; justify-content: space-between; align-items: center; padding: 12px 0;
-        border-bottom: 1px solid var(--border);
-      }
-      .freshness-row:last-child { border-bottom: none; }
-      .pool-indicator {
-        display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
-        font-size: 12px; font-weight: 600;
-      }
-      .pool-ok { background: rgba(74, 222, 128, 0.1); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.3); }
-      .pool-warn { background: rgba(250, 204, 21, 0.1); color: var(--warning); border: 1px solid rgba(250, 204, 21, 0.3); }
-      .pool-danger { background: rgba(248, 113, 113, 0.1); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); }
-      
-      .publish-panel {
-        background: var(--bg-elevated); border: 2px solid var(--tier2); padding: 20px; border-radius: 4px;
-        text-align: center;
-      }
-      .publish-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-      
-      .csv-input { display: none; }
-      .upload-area {
-        border: 2px dashed var(--border); padding: 20px; text-align: center; border-radius: 4px;
-        cursor: pointer; transition: all 0.2s;
-      }
-      .upload-area:hover { border-color: var(--tier2); background: rgba(192, 132, 252, 0.05); }
-      
+      .btn-danger:hover:not(:disabled) { opacity: 0.85; }
+      .btn-sm { padding: 6px 12px; font-size: 11px; }
+      .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+      /* ===== ALERTS ===== */
       .alert {
-        padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 14px;
+        padding: 12px 16px; border-radius: 4px; margin-bottom: 16px;
+        font-size: 13px; line-height: 1.5;
+        display: flex; align-items: flex-start; gap: 10px;
       }
-      .alert-success { background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); color: var(--success); }
-      .alert-warn { background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.3); color: var(--warning); }
-      .alert-error { background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); color: var(--danger); }
-      
-      .preview-link {
-        display: inline-block; margin-top: 16px; padding: 12px 24px; background: var(--tier1);
-        color: #0a0a0f; text-decoration: none; border-radius: 4px; font-weight: 600;
+      .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+      .alert-success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success); }
+      .alert-warn    { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning); }
+      .alert-error   { background: var(--danger-bg);  border: 1px solid var(--danger-border);  color: var(--danger); }
+
+      /* ===== QUESTIONS LIST ===== */
+      .questions-list { display: grid; gap: 10px; }
+      .question-card {
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        padding: 16px; border-radius: 4px;
+        transition: border-color 0.15s;
+      }
+      .question-card:hover { border-color: rgba(255,255,255,0.12); }
+      .question-card-header {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 12px; margin-bottom: 10px;
+      }
+      .question-card-title { font-weight: 600; font-size: 14px; line-height: 1.4; }
+      .question-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+      .question-card-options {
+        font-size: 12px; color: var(--text-muted); margin-top: 8px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+      }
+      .question-card-option { display: flex; align-items: center; gap: 6px; }
+      .question-card-option.correct { color: var(--success); font-weight: 600; }
+      .q-key {
+        font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+        width: 18px; height: 18px; border-radius: 2px; border: 1px solid currentColor;
+        display: grid; place-items: center; flex-shrink: 0; opacity: 0.7;
+      }
+      .q-empty {
+        text-align: center; padding: 40px 20px;
+        color: var(--text-muted); font-size: 14px;
+        border: 1px dashed rgba(148,163,184,0.15);
+        border-radius: 4px; line-height: 1.6;
+      }
+
+      /* ===== TIER BADGES ===== */
+      .tier-badge {
+        display: inline-flex; align-items: center;
+        font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.1em;
+        padding: 3px 10px; border-radius: 999px; border: 1px solid;
+      }
+      .tier-1 { background: var(--tier1-bg); border-color: var(--tier1-border); color: var(--tier1); }
+      .tier-2 { background: var(--tier2-bg); border-color: var(--tier2-border); color: var(--tier2); }
+      .tier-3 { background: var(--tier3-bg); border-color: var(--tier3-border); color: var(--tier3); }
+
+      /* ===== FRESHNESS / POOL STATUS ===== */
+      .pool-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 14px 0; border-bottom: 1px solid var(--border);
+        gap: 12px;
+      }
+      .pool-row:last-child { border-bottom: none; }
+      .pool-row-label { font-size: 14px; font-weight: 500; }
+      .pool-row-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+      .pool-indicator {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 12px; border-radius: 999px;
+        font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.08em; flex-shrink: 0;
+      }
+      .pool-indicator::before { content: '●'; font-size: 8px; }
+      .pool-ok   { background: var(--success-bg);  color: var(--success); border: 1px solid var(--success-border); }
+      .pool-warn { background: var(--warning-bg);  color: var(--warning); border: 1px solid var(--warning-border); }
+      .pool-bad  { background: var(--danger-bg);   color: var(--danger);  border: 1px solid var(--danger-border); }
+
+      /* ===== PUBLISH PANEL ===== */
+      .publish-panel {
+        border: 1px solid var(--tier2-border);
+        background: linear-gradient(135deg, rgba(192,132,252,0.04) 0%, rgba(124,58,237,0.04) 100%);
+        border-radius: 6px; padding: 28px; text-align: center;
+      }
+      .publish-panel h3 {
+        font-family: var(--font-display); font-size: 18px; margin-bottom: 10px;
+      }
+      .publish-panel p { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+
+      /* ===== CSV UPLOAD ===== */
+      .upload-area {
+        border: 2px dashed var(--border); padding: 32px 20px;
+        text-align: center; border-radius: 4px; cursor: pointer;
+        transition: all 0.2s; color: var(--text-muted);
+        font-size: 14px; line-height: 1.6;
+      }
+      .upload-area:hover, .upload-area.drag-over {
+        border-color: var(--tier2);
+        background: var(--tier2-bg);
+        color: var(--text-primary);
+      }
+      .upload-area .upload-icon { font-size: 32px; margin-bottom: 10px; }
+      .csv-input { display: none; }
+
+      /* ===== SAMPLE FEEDBACK (after generate test pack) ===== */
+      .sample-feedback {
+        margin-top: 18px; padding: 16px 20px; border-radius: 4px;
+        background: var(--tier2-bg); border: 1px solid var(--tier2-border);
+      }
+      .sample-feedback strong { color: var(--tier2); }
+      .sample-feedback p { color: var(--text-secondary); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+
+      /* ===== RESPONSIVE ===== */
+      @media (max-width: 640px) {
+        .page-wrap { padding: 24px 16px 60px; }
+        .options-grid { grid-template-columns: 1fr; }
+        .tabs { overflow-x: auto; gap: 2px; }
+        .tab-btn { font-size: 12px; padding: 8px 10px; }
       }
     </style>
   </head>
   <body>
-    <div class="container">
+    <div class="vignette"></div>
+    <div class="crt-overlay"></div>
+    <div class="particles" id="particles"></div>
+
+    <!-- Consistent nav bar matching game page -->
+    <nav class="site-nav">
+      <span class="nav-brand">Speedrun Trivia Ladder</span>
+      <a href="/" class="nav-back" aria-label="Back to game">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10 3L5 8l5 5"/>
+        </svg>
+        Back to Game
+      </a>
+    </nav>
+
+    <div class="page-wrap">
+
       <div class="header">
+        <div class="eyebrow">Speedrun Trivia Ladder</div>
         <h1>Creator Authoring</h1>
-        <p>Build and manage your trivia pack. Questions are stored locally in your browser.</p>
+        <p>Build and manage your trivia pack. Questions are stored locally in your browser until you publish.</p>
       </div>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="add">Add Questions</button>
-        <button class="tab-btn" data-tab="bulk">Bulk Import (CSV)</button>
-        <button class="tab-btn" data-tab="manage">Manage Questions</button>
-        <button class="tab-btn" data-tab="freshness">Freshness & Publish</button>
+        <button class="tab-btn active" data-tab="add">Add Question</button>
+        <button class="tab-btn" data-tab="bulk">Bulk CSV</button>
+        <button class="tab-btn" data-tab="manage">Manage (<span id="question-count">0</span>)</button>
+        <button class="tab-btn" data-tab="freshness">Publish</button>
       </div>
 
       <!-- Add Single Question -->
       <div id="add" class="tab-content active">
-        <form id="add-form">
-          <div class="form-group">
-            <label>Question Text</label>
-            <textarea id="prompt" placeholder="e.g., What is your project?" required></textarea>
-          </div>
-
-          <div class="form-group">
-            <label>Tier (Difficulty)</label>
-            <select id="tier" required>
-              <option value="1">Tier 1 - Warm-up (Broadly known)</option>
-              <option value="2">Tier 2 - Climb (Moderately specific)</option>
-              <option value="3">Tier 3 - Summit (Deep knowledge)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Answer Options</label>
-            <div class="options-grid">
-              <div class="option-wrapper">
-                <input type="text" class="option" placeholder="Option A" required />
-                <input type="radio" class="correct-toggle" name="correct" value="0" />
-              </div>
-              <div class="option-wrapper">
-                <input type="text" class="option" placeholder="Option B" required />
-                <input type="radio" class="correct-toggle" name="correct" value="1" />
-              </div>
-              <div class="option-wrapper">
-                <input type="text" class="option" placeholder="Option C" required />
-                <input type="radio" class="correct-toggle" name="correct" value="2" />
-              </div>
-              <div class="option-wrapper">
-                <input type="text" class="option" placeholder="Option D" required />
-                <input type="radio" class="correct-toggle" name="correct" value="3" />
-              </div>
+        <div class="card">
+          <div class="card-title">New Question</div>
+          <form id="add-form" novalidate>
+            <div class="form-group">
+              <label>Question Text <span class="required">required</span></label>
+              <textarea id="prompt" placeholder="e.g., What is the name of the bonding curve mechanic used in Flaunch?" required></textarea>
             </div>
-            <small style="color: var(--text-muted); margin-top: 8px; display: block;">Click the radio button to mark the correct answer</small>
-          </div>
 
-          <button type="submit" class="btn btn-primary">Add Question</button>
-          <button type="button" class="btn btn-secondary" style="margin-left: 8px;" onclick="document.getElementById('add-form').reset()">Clear</button>
-        </form>
+            <div class="form-group">
+              <label>Tier (Difficulty)</label>
+              <select id="tier" required>
+                <option value="1">Tier 1 — Warm-up · Broadly known (homepage level)</option>
+                <option value="2">Tier 2 — Climb · Moderately specific (docs, tokenomics)</option>
+                <option value="3">Tier 3 — Summit · Deep knowledge (community lore)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Answer Options <span class="required">required</span></label>
+              <div class="options-grid">
+                <label class="option-tile" id="option-tile-0">
+                  <input type="radio" class="correct-radio" name="correct" value="0" />
+                  <div class="option-tile-inner">
+                    <span class="option-key">A</span>
+                    <input type="text" class="option" placeholder="Option A" required />
+                    <span class="option-correct-badge">✓ Correct</span>
+                  </div>
+                </label>
+                <label class="option-tile" id="option-tile-1">
+                  <input type="radio" class="correct-radio" name="correct" value="1" />
+                  <div class="option-tile-inner">
+                    <span class="option-key">B</span>
+                    <input type="text" class="option" placeholder="Option B" required />
+                    <span class="option-correct-badge">✓ Correct</span>
+                  </div>
+                </label>
+                <label class="option-tile" id="option-tile-2">
+                  <input type="radio" class="correct-radio" name="correct" value="2" />
+                  <div class="option-tile-inner">
+                    <span class="option-key">C</span>
+                    <input type="text" class="option" placeholder="Option C" required />
+                    <span class="option-correct-badge">✓ Correct</span>
+                  </div>
+                </label>
+                <label class="option-tile" id="option-tile-3">
+                  <input type="radio" class="correct-radio" name="correct" value="3" />
+                  <div class="option-tile-inner">
+                    <span class="option-key">D</span>
+                    <input type="text" class="option" placeholder="Option D" required />
+                    <span class="option-correct-badge">✓ Correct</span>
+                  </div>
+                </label>
+              </div>
+              <p class="options-hint">Click any tile to mark it as the correct answer</p>
+            </div>
+
+            <div id="add-form-error" style="display:none;" class="alert alert-error">
+              <span class="alert-icon">⚠</span><span id="add-form-error-text"></span>
+            </div>
+
+            <div class="btn-group">
+              <button type="submit" class="btn btn-primary">Add Question</button>
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-form').reset(); document.getElementById('add-form-error').style.display='none';">Clear</button>
+              <button type="button" id="generate-sample-btn" class="btn btn-secondary">Generate Test Pack</button>
+            </div>
+          </form>
+
+          <div id="sample-feedback" class="sample-feedback" style="display: none;">
+            <strong>Test pack created.</strong>
+            <p>Your local pack now has sample questions. Open the preview to test the full game flow before publishing.</p>
+            <div class="btn-group" style="margin-top: 12px;">
+              <button type="button" id="open-preview-btn" class="btn btn-primary">Open Preview</button>
+              <button type="button" id="switch-to-freshness-btn" class="btn btn-secondary">Go to Publish</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Bulk Import -->
       <div id="bulk" class="tab-content">
-        <h3 style="margin-bottom: 16px;">Import from CSV</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
-          Format: <code style="background: var(--bg-elevated); padding: 2px 4px;">prompt,tier,optionA,optionB,optionC,optionD,correctIndex</code>
-        </p>
-        <div class="upload-area" id="drop-zone">
-          Click to upload CSV or drag & drop
+        <div class="card">
+          <div class="card-title">Bulk Import from CSV</div>
+          <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;line-height:1.6">
+            Each row: <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:3px;font-size:12px">prompt,tier,optionA,optionB,optionC,optionD,correctIndex</code>
+          </p>
+          <div class="upload-area" id="drop-zone">
+            <div class="upload-icon">📄</div>
+            <strong>Drop a CSV file here</strong><br/>
+            or click to browse
+          </div>
+          <input type="file" id="csv-input" class="csv-input" accept=".csv" />
+          <div id="import-alert" style="margin-top: 16px;"></div>
         </div>
-        <input type="file" id="csv-input" class="csv-input" accept=".csv" />
-        <div id="import-alert" style="margin-top: 16px;"></div>
       </div>
 
       <!-- Manage Questions -->
       <div id="manage" class="tab-content">
-        <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-          <h3>Questions (<span id="question-count">0</span> total)</h3>
-          <button class="btn btn-danger btn-sm" onclick="if (confirm('Delete all questions?')) { localStorage.removeItem('creatorPack'); location.reload(); }">Clear All</button>
-        </div>
-        <div id="questions-list" class="questions-list" style="min-height: 100px; color: var(--text-muted);">
-          No questions yet. Add some from the "Add Questions" tab.
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Questions (<span id="question-count-2">0</span> total)</span>
+            <button class="btn btn-danger btn-sm" onclick="if (confirm('Delete all questions?')) { localStorage.removeItem('creatorPack'); location.reload(); }">Clear All</button>
+          </div>
+          <div id="questions-list" class="questions-list">
+            <div class="q-empty">No questions yet.<br/>Add some from the <strong>Add Question</strong> tab.</div>
+          </div>
         </div>
       </div>
 
       <!-- Freshness & Publish -->
       <div id="freshness" class="tab-content">
-        <div class="freshness-panel">
-          <h3 style="margin-bottom: 16px;">Pool Depth</h3>
-          <div id="pool-status" style="min-height: 120px;"></div>
+        <div class="card">
+          <div class="card-title">Pool Depth by Tier</div>
+          <div id="pool-status"></div>
         </div>
 
-        <div class="freshness-panel">
-          <h3 style="margin-bottom: 16px;">Pack Metadata</h3>
+        <div class="card">
+          <div class="card-title">Pack Metadata</div>
           <div class="form-group">
-            <label>Pack Title (shown in lobby)</label>
+            <label>Pack Title <span style="color:var(--text-muted);font-weight:400">(shown in lobby)</span></label>
             <input type="text" id="pack-title" placeholder="How well do you know [Your Project]?" />
           </div>
           <div class="form-group">
-            <label>Pack ID (for seeding, must be stable)</label>
-            <input type="text" id="pack-id" placeholder="e.g., my-project-v1" />
+            <label>Pack ID <span style="color:var(--text-muted);font-weight:400">(stable identifier for shuffle seeding)</span></label>
+            <input type="text" id="pack-id" placeholder="my-project-v1" />
           </div>
           <div class="form-group">
-            <label>Rounds Played (informational, bumps when you publish)</label>
-            <input type="number" id="rounds-played" value="0" readonly style="opacity: 0.6;" />
+            <label>Rounds Played <span style="color:var(--text-muted);font-weight:400">(auto-bumped on publish)</span></label>
+            <input type="number" id="rounds-played" value="0" readonly />
           </div>
         </div>
 
         <div class="publish-panel">
-          <h3 style="margin-bottom: 12px;">Ready to Publish?</h3>
-          <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
-            Generate a JSON file to host on your server or share with Flaunch.
-          </p>
-          <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 12px;">
-            <button id="preview-btn" class="btn btn-secondary" style="font-size: 14px;">🎮 Test Playthrough</button>
-            <button id="publish-btn" class="btn btn-primary" style="font-size: 14px;">Generate JSON</button>
+          <h3>Ready to Publish?</h3>
+          <p>Test your pack in-game, then generate a JSON file to host on your CDN or share with Flaunch.</p>
+          <div class="btn-group" style="justify-content:center">
+            <button id="preview-btn" class="btn btn-secondary">🎮 Test Playthrough</button>
+            <button id="publish-btn" class="btn btn-primary">Generate JSON ↓</button>
           </div>
-          <div id="publish-status" style="margin-top: 16px;"></div>
+          <div id="publish-status" style="margin-top: 20px;"></div>
         </div>
       </div>
     </div>
 
+    <script>
+      // Ambient particles (match game page)
+      const pc = document.getElementById('particles');
+      for (let i = 0; i < 20; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.top = Math.random() * 100 + '%';
+        p.style.animationDuration = (20 + Math.random() * 25) + 's';
+        p.style.animationDelay = (-Math.random() * 30) + 's';
+        p.style.width = p.style.height = (2 + Math.random() * 2) + 'px';
+        pc.appendChild(p);
+      }
+    </script>
     <script type="module" src="/src/creator.ts"></script>
   </body>
 </html>

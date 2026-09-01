@@ -114,6 +114,25 @@ async function loadConfig(): Promise<Config> {
 }
 
 /**
+ * Fire an answer by index (0–3). Used by both click and keyboard handlers.
+ */
+function fireAnswer(chosen: number): void {
+  if (lockAnswer) return;
+  const tiles = rootEl.querySelectorAll<HTMLElement>('[data-answer]');
+  const ans = tiles[chosen] as HTMLElement | undefined;
+  if (!ans) return;
+  const qid = ans.dataset.qid ?? '';
+
+  lockAnswer = true;
+  ans.classList.add('picked');
+  for (const b of tiles) {
+    (b as HTMLButtonElement).disabled = true;
+    b.style.pointerEvents = 'none';
+  }
+  void room!.send({ kind: 'answer', questionId: qid, chosen } satisfies Action);
+}
+
+/**
  * Initialize the game with the loaded config.
  */
 async function initGame(): Promise<void> {
@@ -136,25 +155,81 @@ async function initGame(): Promise<void> {
     }
     const ans = target.closest('[data-answer]') as HTMLElement | null;
     if (ans && !lockAnswer) {
-      const chosen = Number(ans.dataset.answer);
-      const qid = ans.dataset.qid ?? '';
-      lockAnswer = true;
-      ans.classList.add('picked');
-      for (const b of rootEl.querySelectorAll<HTMLElement>('[data-answer]')) b.style.pointerEvents = 'none';
-      if (renderTimer) clearTimeout(renderTimer);
-      renderTimer = setTimeout(() => render(), 320);
-      void room!.send({ kind: 'answer', questionId: qid, chosen } satisfies Action);
+      fireAnswer(Number(ans.dataset.answer));
+    }
+  });
+
+  // ── Task 1: A/B/C/D keyboard shortcuts ──────────────────────────────────
+  document.addEventListener('keydown', (ev) => {
+    // Only fire when a question is active and no modifier keys are held
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    // Don't steal keys when user is typing in an input/textarea
+    const tag = (ev.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    const map: Record<string, number> = { a: 0, b: 1, c: 2, d: 3 };
+    const idx = map[ev.key.toLowerCase()];
+    if (idx === undefined) return;
+
+    // Only active when tiles are present (question screen)
+    const tiles = rootEl.querySelectorAll<HTMLElement>('[data-answer]');
+    if (!tiles.length) return;
+
+    ev.preventDefault();
+
+    // Visual flash on the key badge before firing
+    const tile = tiles[idx];
+    if (tile && !lockAnswer) {
+      tile.classList.add('key-flash');
+      setTimeout(() => tile.classList.remove('key-flash'), 150);
+      fireAnswer(idx);
     }
   });
 
   room!.subscribe((snapshot) => {
-    lockAnswer = false;
     const snap = snapshot as Snapshot<PublicView, PlayerView>;
-    if (renderTimer) {
-      latest = snap;
-      return;
+    const you = snap.playerView;
+    const prevYou = latest?.playerView;
+
+    // Feedback Flash logic: if we advanced rungs or finished, show feedback for the previous question
+    if (prevYou?.status === 'active' && you && (you.rung > prevYou.rung || you.status === 'done')) {
+      const lastRight = you.lastRight;
+      const pickedBtn = rootEl.querySelector<HTMLElement>(`.answer-tile.picked`);
+      
+      if (pickedBtn) {
+        pickedBtn.classList.remove('picked');
+        pickedBtn.classList.add(lastRight ? 'correct' : 'wrong');
+        
+        if (!lastRight) {
+          rootEl.querySelector('.question-card')?.classList.add('screen-shake');
+        } else {
+          // Floating Score effect
+          const anchor = document.getElementById('float-anchor');
+          if (anchor) {
+            const floater = document.createElement('div');
+            floater.className = 'float-score';
+            floater.textContent = `+${you.runScore - prevYou.runScore}`;
+            anchor.appendChild(floater);
+            setTimeout(() => floater.remove(), 800);
+          }
+        }
+      }
+
+      // Delay render of next question/screen for the feedback duration
+      if (renderTimer) clearTimeout(renderTimer);
+      renderTimer = setTimeout(() => {
+        renderTimer = null;
+        lockAnswer = false;
+        render(snap);
+      }, 450);
+    } else {
+      lockAnswer = false;
+      if (renderTimer) {
+        latest = snap;
+        return;
+      }
+      render(snap);
     }
-    render(snap);
   });
   room!.economy.subscribe(() => {
     if (renderTimer) return;
@@ -172,6 +247,14 @@ async function initGame(): Promise<void> {
       if (timerEl && t) {
         timerEl.textContent = (t.ms / 1000).toFixed(1);
         timerEl.className = 'timer-number ' + timerClass(t.ms);
+        
+        // Auto-lock on timeout
+        if (t.ms <= 0 && !lockAnswer) {
+          lockAnswer = true;
+          for (const b of rootEl.querySelectorAll<HTMLElement>('[data-answer]')) {
+            (b as HTMLButtonElement).disabled = true;
+          }
+        }
       }
       if (fillEl && t) fillEl.style.width = t.pct + '%';
     }
@@ -215,6 +298,23 @@ const TIER_LABEL: Record<number, string> = { 1: 'Warm-Up', 2: 'Climb', 3: 'Summi
 let latest: Snapshot<PublicView, PlayerView> | null = null;
 let lockAnswer = false;
 let renderTimer: ReturnType<typeof setTimeout> | null = null;
+// Track the last rendered screen so we can trigger fade-in only on screen changes
+let prevScreen: string | null = null;
+
+/**
+ * Task 3: Animates a numeric element from 0 up to `target` over `durationMs`.
+ */
+function countUp(el: HTMLElement, target: number, durationMs = 900): void {
+  const start = performance.now();
+  const step = (now: number) => {
+    const progress = Math.min((now - start) / durationMs, 1);
+    // Ease-out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(eased * target).toLocaleString();
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -280,66 +380,104 @@ function render(snapshot = latest): void {
   const { publicView: pub, playerView: you } = snapshot;
   const balance = room!.economy.current();
   const roundLeft = Math.max(0, Math.ceil((pub.closesAt - room!.now()) / 1_000));
-  const standings = pub.standings
-    .map((s, i) => {
-      const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-      return `<li class="${rankClass} ${s.player === MY_ID ? 'me' : ''}">
-        <span class="rank">${i + 1}</span>
-        <span class="name">${esc(s.player.slice(0, 8))}</span>
-        <span class="led-score">${s.score.toLocaleString()}<em>pts</em></span>
-      </li>`;
-    })
-    .join('');
+  const hasAllowance = balance.availableWei > 0n;
+  const standings = pub.standings.length
+    ? pub.standings
+        .map((s, i) => {
+          const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+          return `<li class="${rankClass} ${s.player === MY_ID ? 'me' : ''}">
+            <span class="rank">${i + 1}</span>
+            <span class="name">${esc(s.player.slice(0, 8))}</span>
+            <span class="led-score">${s.score.toLocaleString()}<em>pts</em></span>
+          </li>`;
+        })
+        .join('')
+    : '<li class="empty">No climbers yet — be the first to start</li>';
 
   const tier = you?.tier ? tierKey(you.tier) : 2;
   const tierColor = TIER_RAW[tier];
   const tierGlow = TIER_GLOW[tier];
   const timer = you?.status === 'active' ? countdownParts(you.deadline) : null;
 
+  // ── Task 2: Determine screen key for transition detection ──────────────
+  const screenKey = you?.status ?? 'idle';
+
   let main = '';
   switch (you?.status) {
     case 'unjoined':
     case 'idle': {
-      // Get freshness info from config
-      const packMetadata = localStorage.getItem('creatorPack');
+      // ── Pull tier timings from config ──────────────────────────────────
+      const t1s = (config.tierSpecs[1].budgetMs / 1000).toFixed(0);
+      const t2s = (config.tierSpecs[2].budgetMs / 1000).toFixed(0);
+      const t3s = (config.tierSpecs[3].budgetMs / 1000).toFixed(0);
+      const speedPct = `+${Math.round(config.speedBonusCap * 100)}%`;
+
+      // Freshness badge for custom packs
       let freshnessBadge = '';
-      if (packMetadata && config.packId !== 'demo') {
+      if (config.packId !== 'demo') {
         try {
-          const pack = JSON.parse(packMetadata);
-          if (pack.packId === config.packId) {
-            const now = Date.now();
-            const updated = pack.lastUpdated || 0;
-            const daysSince = Math.floor((now - updated) / (1000 * 60 * 60 * 24));
-            if (daysSince === 0) {
-              freshnessBadge = '<div class="freshness-badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 8px 12px; border-radius: 2px; font-size: 12px; margin-bottom: 16px;">✨ Freshly updated today</div>';
-            } else if (daysSince < 7) {
-              freshnessBadge = `<div class="freshness-badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 8px 12px; border-radius: 2px; font-size: 12px; margin-bottom: 16px;">🔄 Updated ${daysSince}d ago</div>`;
+          const saved = localStorage.getItem('creatorPack');
+          if (saved) {
+            const pack = JSON.parse(saved);
+            if (pack.packId === config.packId) {
+              const daysSince = Math.floor((Date.now() - (pack.lastUpdated || 0)) / 86_400_000);
+              if (daysSince === 0) {
+                freshnessBadge = '<span class="rule-pill accent-green"><span class="pill-icon">✨</span>Updated today</span>';
+              } else if (daysSince < 7) {
+                freshnessBadge = `<span class="rule-pill"><span class="pill-icon">🔄</span>Updated ${daysSince}d ago</span>`;
+              }
             }
           }
-        } catch (e) {
-          // Ignore errors
-        }
+        } catch (_) { /* ignore */ }
       }
-      
+
       main = `
         <section class="neon-card glass intro" style="--neon:var(--tier2);--neon-glow:var(--tier2-glow)">
-          ${freshnessBadge}
-          <div class="eyebrow">${esc(pub.title)}</div>
-          <h1><span class="accent">Speedrun</span><br/>Trivia Ladder</h1>
-          <p class="sub">Climb a 10-rung ladder of escalating questions before the clock runs out. Answer fast and right to earn more — one wrong answer drops your tier, never the run.</p>
-          <div class="stat-cards">
-            <div class="stat-card stat-card--t1"><div class="stat-value">8s</div><div class="stat-label">Warm-up</div></div>
-            <div class="stat-card stat-card--t2"><div class="stat-value">7s</div><div class="stat-label">Climb</div></div>
-            <div class="stat-card stat-card--t3"><div class="stat-value">6s</div><div class="stat-label">Summit</div></div>
-            <div class="stat-card stat-card--speed"><div class="stat-value">+50%</div><div class="stat-label">Speed</div></div>
+          <div class="intro-eyebrow">
+            <span class="dot"></span>
+            <span class="label">${esc(config.packId.toUpperCase())}</span>
+            <span class="sep">·</span>
+            <span class="live-label">LIVE</span>
           </div>
-          <button class="btn btn-cta" data-start ${pub.over ? 'disabled' : ''}>${pub.over ? 'Round Closed' : 'Start the Climb'}</button>
+          <h1><span class="grad">${esc(pub.title)}</span></h1>
+          <p class="intro-desc">Climb a 10-rung ladder of escalating questions before the clock runs out. Answer fast and right to earn more — one wrong answer drops your tier, never the run.</p>
+          <div class="rule-pills">
+            <span class="rule-pill"><span class="pill-icon">🏔️</span>10 rungs · 3 tiers</span>
+            <span class="rule-pill accent-t1"><span class="pill-icon">⏱</span>Speed bonus +${Math.round(config.speedBonusCap * 100)}%</span>
+            <span class="rule-pill accent-green"><span class="pill-icon">↻</span>Wrong = tier drop, not game over</span>
+            <span class="rule-pill accent-t2"><span class="pill-icon">🏅</span>+${config.completionBonus} completion bonus</span>
+            ${freshnessBadge}
+          </div>
+          <div class="stat-header">Time per question by tier</div>
+          <div class="stat-cards">
+            <div class="stat-card stat-card--t1">
+              <div class="stat-icon">🔥</div>
+              <div class="stat-value">${t1s}s</div>
+              <div class="stat-label">Warm-up</div>
+            </div>
+            <div class="stat-card stat-card--t2">
+              <div class="stat-icon">⛰️</div>
+              <div class="stat-value">${t2s}s</div>
+              <div class="stat-label">Climb</div>
+            </div>
+            <div class="stat-card stat-card--t3">
+              <div class="stat-icon">🏔️</div>
+              <div class="stat-value">${t3s}s</div>
+              <div class="stat-label">Summit</div>
+            </div>
+            <div class="stat-card stat-card--speed">
+              <div class="stat-icon">⚡</div>
+              <div class="stat-value">${speedPct}</div>
+              <div class="stat-label">Speed Bonus</div>
+            </div>
+          </div>
+          <button class="btn btn-cta" data-start ${pub.over ? 'disabled' : ''}>
+            ${pub.over ? 'Round Closed' : 'Start the Climb'}<span class="cta-arrow">${pub.over ? '' : '→'}</span>
+          </button>
         </section>`;
       break;
     }
     case 'active': {
-      const circ = 2 * Math.PI * 42;
-      const off = circ * (1 - (timer ? timer.pct / 100 : 1));
       const tCls = timer ? timerClass(timer.ms) : '';
       main = `
         <section class="neon-card glass question-card" style="--neon:${tierColor};--neon-glow:${tierGlow}">
@@ -356,10 +494,13 @@ function render(snapshot = latest): void {
               </button>`,
             ).join('')}
           </div>
-          <div class="timer-bar-wrap">
-            <div class="timer-bar-fill" style="width:${timer ? timer.pct : 0}%;background:${tierColor};--timer-color:${tierColor}"></div>
+          <div class="keyboard-hint">Press A · B · C · D to answer</div>
+          <div class="timer-wrap">
+            <div class="timer-bar-wrap">
+              <div class="timer-bar-fill" style="width:${timer ? timer.pct : 0}%;background:${tierColor};--timer-color:${tierColor}"></div>
+            </div>
+            <div class="timer-number ${tCls}" style="--timer-glow:${tierGlow}">${timer ? (timer.ms / 1000).toFixed(1) : '—'}</div>
           </div>
-          <div class="timer-number ${tCls}" style="--timer-glow:${tierGlow}">${timer ? (timer.ms / 1000).toFixed(1) : '—'}</div>
         </section>
         <div class="score-hud" style="position:relative">
           <span class="score-label">Score</span>
@@ -371,17 +512,33 @@ function render(snapshot = latest): void {
     }
     case 'done': {
       const final = you.completed ? you.runScore + config.completionBonus : you.runScore;
+      const stats = you.stats;
+      // ── Task 3: final-score uses data-countup so we can animate it after render ──
       main = `
         <section class="neon-card glass end ${you.completed ? 'gold' : ''}" style="--neon:${you.completed ? 'var(--tier3)' : 'var(--tier2)'};--neon-glow:${you.completed ? 'var(--tier3-glow)' : 'var(--tier2-glow)'}">
           ${you.completed ? '<div class="tier-badge" style="--badge-color:var(--tier3);margin:0 auto 8px;display:flex;justify-content:center;width:max-content">🏔️ Summit Reached</div>' : '<div class="eyebrow">Run Complete</div>'}
-          <h2 class="final-score">${final.toLocaleString()}</h2>
-          <p class="sub" style="margin:0 0 12px"><b>Best this round: ${you.bestScore.toLocaleString()}</b> pts
-            ${you.bestScore > 0 ? ` &middot; ≈ ${((you.bestScore * Number(balance.weiPerPoint)) / 1e18).toFixed(4)} ETH Allowance` : ''}
-          </p>
-          ${you.completed ? '<p class="confetti-text">🎉 You reached the top of the ladder!</p>' : ''}
+          <h2 class="final-score" data-countup="${final}">0</h2>
+          
+          <div class="run-stats-grid">
+            <div class="run-stat">
+              <div class="run-stat-val">${stats.correctCount}/10</div>
+              <div class="run-stat-lab">Accuracy</div>
+            </div>
+            <div class="run-stat">
+              <div class="run-stat-val">+${stats.speedBonusTotal}</div>
+              <div class="run-stat-lab">Speed Bonus</div>
+            </div>
+            <div class="run-stat">
+              <div class="run-stat-val">Tier ${stats.finalTier}</div>
+              <div class="run-stat-lab">Final Rank</div>
+            </div>
+          </div>
+
+          <p class="end-sub"><b>Best this round: ${you.bestScore.toLocaleString()}</b> pts${you.bestScore > 0 ? ` · ≈ ${((you.bestScore * Number(balance.weiPerPoint)) / 1e18).toFixed(4)} ETH` : ''}</p>
+          ${you.completed ? '<p class="confetti-text">🎉 Completion Bonus +500 Included!</p>' : ''}
           ${pub.over
-            ? '<p class="sub" style="margin:0">The launch window has closed.</p>'
-            : `<button class="btn btn-cta" data-start style="margin-top:16px">Climb Again ↻</button>`}
+            ? '<p class="end-sub" style="margin-top:4px">The launch window has closed.</p>'
+            : `<button class="btn btn-cta" data-start style="margin-top:20px">Climb Again <span class="cta-arrow">↻</span></button>`}
         </section>`;
       break;
     }
@@ -393,10 +550,39 @@ function render(snapshot = latest): void {
       <div class="main-stage">${main}</div>
       <aside class="neon-card glass leaderboard">
         <h3>Leaderboard</h3>
-        <div class="led-meta"><span>${roundLeft}s left</span><span>${pub.standings.length} climber${pub.standings.length === 1 ? '' : 's'}</span></div>
-        <ul class="standings">${standings || '<li class="empty">No climbers yet</li>'}</ul>
-        <button class="btn btn-buy" data-buy ${balance.availableWei <= 0n ? 'disabled' : ''}>
+        <div class="led-meta">
+          <span class="round-countdown ${roundLeft <= 30 ? 'urgent' : ''}">${roundLeft}s left</span>
+          <span>${pub.standings.length} climber${pub.standings.length === 1 ? '' : 's'}</span>
+        </div>
+        <ul class="standings">${standings}</ul>
+        <button class="btn btn-buy" data-buy ${!hasAllowance ? 'disabled' : ''} ${!hasAllowance ? 'style="display:none"' : ''}>
           Claim ${(Number(balance.availableWei) / 1e18).toFixed(4)} ETH ➜</button>
       </aside>
     </div>`;
+
+  // ── Task 2: Fade-in animation on screen change ────────────────────────
+  const isNewScreen = screenKey !== prevScreen;
+  if (isNewScreen) {
+    const stage = rootEl.querySelector<HTMLElement>('.main-stage');
+    if (stage) {
+      stage.classList.remove('screen-fade-in');
+      // Force reflow so the class re-triggers the animation
+      void stage.offsetWidth;
+      stage.classList.add('screen-fade-in');
+    }
+    prevScreen = screenKey;
+  }
+
+  // ── Task 3: Trigger count-up on end screen (only on screen entry) ─────
+  const countupEl = rootEl.querySelector<HTMLElement>('[data-countup]');
+  if (countupEl) {
+    const target = Number(countupEl.dataset.countup);
+    if (isNewScreen) {
+      // Fresh entry into end screen — animate from 0
+      countUp(countupEl, target, 1000);
+    } else {
+      // Already on end screen (e.g. leaderboard refresh): show final value immediately
+      countupEl.textContent = target.toLocaleString();
+    }
+  }
 }

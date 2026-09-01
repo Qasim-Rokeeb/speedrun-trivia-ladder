@@ -49,6 +49,50 @@ function generateQuestionId(): string {
   return `q${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function createSampleQuestion(tier: 1 | 2 | 3, prompt: string, options: [string, string, string, string], correct: number): Question {
+  return {
+    id: generateQuestionId(),
+    tier,
+    prompt,
+    options,
+    correct,
+  };
+}
+
+function generateSamplePack(): CreatorPack {
+  const samples: Question[] = [
+    createSampleQuestion(1, 'What is the main job of a crypto wallet?', ['Store private keys and sign transactions', 'Mine blocks automatically', 'Issue new tokens', 'Run a validator node'], 0),
+    createSampleQuestion(1, 'What does ETH usually pay for on Ethereum?', ['Gas fees for transactions', 'A protocol dividend', 'An ownership share', 'A stablecoin reserve'], 0),
+    createSampleQuestion(1, 'What is a smart contract?', ['Self-executing code on-chain', 'A centralised exchange wallet', 'A browser extension', 'A token listing page'], 0),
+    createSampleQuestion(1, 'Which term best describes a token launch with public participation and no private whitelist?', ['Fair launch', 'Staking lockup', 'KYC gate', 'Private round'], 0),
+    createSampleQuestion(1, 'What is a common purpose of a memecoin?', ['Community culture and speculation', 'Proof-of-work mining', 'Stable asset reserve', 'Cross-chain validator voting'], 0),
+    createSampleQuestion(1, 'Which chain is commonly used for Ethereum-compatible activity?', ['Base', 'Solana', 'Bitcoin Core', 'Filecoin'], 0),
+    createSampleQuestion(1, 'What does a stablecoin try to minimise?', ['Price volatility', 'Network latency', 'Validator slashing', 'Airdrop size'], 0),
+    createSampleQuestion(2, 'What is an AMM in DeFi?', ['An automated market maker using liquidity pools', 'A yield farming dashboard', 'A cold-storage wallet', 'A block explorer'], 0),
+    createSampleQuestion(2, 'Which transaction pattern is most commonly used when bridging assets between chains?', ['Lock on one chain and mint on another', 'Directly copy a wallet secret', 'Replace ENS names with ETH', 'Rebase the token supply'], 0),
+    createSampleQuestion(2, 'What does ERC-20 standardise?', ['A token interface on Ethereum', 'A consensus algorithm', 'A wallet signature method', 'A mining reward schedule'], 0),
+    createSampleQuestion(2, 'What is the usual purpose of a vesting schedule?', ['To release tokens over time', 'To reduce gas fees', 'To create a validator', 'To enforce airdrop claim limits'], 0),
+    createSampleQuestion(2, 'Why do projects often use a spend cap or allowlist?', ['To gate access and manage risk', 'To double the treasury', 'To bypass wallets', 'To reduce block size'], 0),
+    createSampleQuestion(2, 'Which is the most accurate description of a launchpad?', ['A platform that supports token launches and participant access', 'A hardware wallet brand', 'A stablecoin custodian', 'A chain migration service'], 0),
+    createSampleQuestion(2, 'What is a typical risk of low-liquidity markets?', ['Large price swings from small trades', 'No slashing penalties', 'Guaranteed stable returns', 'Permanent network outage'], 0),
+    createSampleQuestion(3, 'Which of these best describes game-mode style gating?', ['Rules verify actions on the server and award points based on trusted state', 'Browser code directly sets scores', 'Wallets submit answers in the UI', 'The client chooses the correct answer'], 0),
+    createSampleQuestion(3, 'Why are server-side rules important in a launch game?', ['They keep score and validation deterministic and trusted', 'They hide the UI from players', 'They replace the wallet', 'They remove the leaderboard'], 0),
+    createSampleQuestion(3, 'In a trivia ladder, why is answer secrecy important?', ['So players do not learn the answer key before the reveal', 'So the UI can load faster', 'So every player sees the same question', 'So gas fees become lower'], 0),
+    createSampleQuestion(3, 'What is the most important purpose of replaying the same input sequence?', ['To prove the state and score are deterministic', 'To count wallet approvals', 'To reduce token supply', 'To issue rewards from the browser'], 0),
+    createSampleQuestion(3, 'Which statement best matches a fixed launch round?', ['The schedule stays anchored to the authored times even when wakes are delayed', 'The server clock changes every second', 'Answers are accepted without validation', 'Players can claim any allowance amount'], 0),
+    createSampleQuestion(3, 'Which feature helps prevent anti-grinding?', ['Best-run scoring and per-player seeded question order', 'Unlimited retries with no timer', 'Browser-side reward selection', 'A static leaderboard from the client'], 0),
+    createSampleQuestion(3, 'What is a good reason to keep wallets outside game code?', ['It keeps the game logic pure and avoids trusted wallet access in creator code', 'It lets the client sign transactions automatically', 'It prevents launch timers from closing', 'It guarantees no scoring mismatch'], 0),
+  ];
+
+  return {
+    title: 'Test Launch Pack',
+    packId: `test-pack-${Date.now()}`,
+    questions: samples,
+    roundsPlayed: 0,
+    lastUpdated: Date.now(),
+  };
+}
+
 // ============ Tab Switching ============
 document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -73,24 +117,28 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 document.getElementById('add-form')?.addEventListener('submit', (e) => {
   e.preventDefault();
 
+  const errorEl = document.getElementById('add-form-error')!;
+  const errorText = document.getElementById('add-form-error-text')!;
+
+  function showError(msg: string): void {
+    errorText.textContent = msg;
+    errorEl.style.display = 'flex';
+  }
+  errorEl.style.display = 'none';
+
   const pack = loadPack();
   const tier = parseInt((document.getElementById('tier') as HTMLInputElement).value) as 1 | 2 | 3;
   const prompt = (document.getElementById('prompt') as HTMLInputElement).value.trim();
   const correctVal = (document.querySelector('input[name="correct"]:checked') as HTMLInputElement | null)?.value;
 
-  if (!prompt || !correctVal) {
-    alert('Please fill all fields and select a correct answer');
-    return;
-  }
+  if (!prompt) return showError('Question text is required.');
+  if (!correctVal) return showError('Mark one answer as correct by clicking its tile.');
 
   const options = Array.from(document.querySelectorAll('.option')).map((el) =>
     (el as HTMLInputElement).value.trim(),
   );
 
-  if (options.some((o) => !o)) {
-    alert('All options must be filled');
-    return;
-  }
+  if (options.some((o) => !o)) return showError('All four option fields must be filled in.');
 
   const question: Question = {
     id: generateQuestionId(),
@@ -103,15 +151,61 @@ document.getElementById('add-form')?.addEventListener('submit', (e) => {
   pack.questions.push(question);
   savePack(pack);
 
-  // Show success
+  // Show inline success
   const msg = document.createElement('div');
   msg.className = 'alert alert-success';
-  msg.textContent = '✓ Question added!';
+  msg.innerHTML = '<span class="alert-icon">✓</span><span>Question added successfully!</span>';
   document.getElementById('add-form')?.parentElement?.prepend(msg);
   setTimeout(() => msg.remove(), 3000);
 
   // Reset form
   (document.getElementById('add-form') as HTMLFormElement)?.reset();
+  // Refresh count in tab
+  for (const id of ['question-count', 'question-count-2']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = pack.questions.length.toString();
+  }
+});
+
+function setSampleFeedbackVisible(visible: boolean): void {
+  const el = document.getElementById('sample-feedback');
+  if (!el) return;
+  el.style.display = visible ? 'block' : 'none';
+}
+
+// ============ Sample Test Pack ============
+document.getElementById('generate-sample-btn')?.addEventListener('click', () => {
+  const pack = generateSamplePack();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(pack));
+
+  const btn = document.getElementById('generate-sample-btn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.textContent = 'Sample Pack Ready';
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = 'Generate Test Pack';
+      btn.disabled = false;
+    }, 2000);
+  }
+
+  setSampleFeedbackVisible(true);
+  refreshQuestionsList();
+  refreshFreshnessPanel();
+  const status = document.getElementById('publish-status');
+  if (status) {
+    status.className = 'alert alert-success';
+    status.innerHTML = `<span class="alert-icon">✓</span><span>Test pack created: <strong>${pack.packId}</strong>. Open the preview to test it.</span>`;
+  }
+});
+
+document.getElementById('open-preview-btn')?.addEventListener('click', () => {
+  window.open('/preview.html', 'preview', 'width=1200,height=800');
+});
+
+document.getElementById('switch-to-freshness-btn')?.addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach((btn) => btn.classList.toggle('active', (btn as HTMLElement).dataset.tab === 'freshness'));
+  document.querySelectorAll('.tab-content').forEach((el) => el.classList.toggle('active', el.id === 'freshness'));
+  refreshFreshnessPanel();
 });
 
 // ============ Bulk CSV Import ============
@@ -120,9 +214,11 @@ const csvInput = document.getElementById('csv-input') as HTMLInputElement;
 
 dropZone?.addEventListener('click', () => csvInput?.click());
 
-['dragover', 'drop'].forEach((event) => {
+['dragover', 'dragleave', 'drop'].forEach((event) => {
   dropZone?.addEventListener(event, (e) => {
     e.preventDefault();
+    if (event === 'dragover') dropZone.classList.add('drag-over');
+    else dropZone.classList.remove('drag-over');
   });
 });
 
@@ -184,12 +280,12 @@ function handleCSVFile(file: File): void {
     const alert = document.getElementById('import-alert')!;
     if (added > 0) {
       alert.className = 'alert alert-success';
-      alert.textContent = `✓ Imported ${added} question${added !== 1 ? 's' : ''}`;
+      alert.innerHTML = `<span class="alert-icon">✓</span><span>Imported ${added} question${added !== 1 ? 's' : ''}</span>`;
     }
     if (errors.length > 0) {
-      const msg = errors.length > 3 ? `${errors.length} errors found` : errors.join('; ');
+      const msg = errors.length > 3 ? `${errors.length} rows had errors` : errors.join('; ');
       alert.className = 'alert alert-warn';
-      alert.textContent = `⚠ ${msg}`;
+      alert.innerHTML = `<span class="alert-icon">⚠</span><span>${msg}</span>`;
     }
 
     csvInput.value = '';
@@ -203,12 +299,14 @@ function handleCSVFile(file: File): void {
 function refreshQuestionsList(): void {
   const pack = loadPack();
   const container = document.getElementById('questions-list')!;
-  const count = document.getElementById('question-count')!;
-
-  count.textContent = pack.questions.length.toString();
+  // Update both count elements (tab badge + manage panel header)
+  for (const id of ['question-count', 'question-count-2']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = pack.questions.length.toString();
+  }
 
   if (pack.questions.length === 0) {
-    container.innerHTML = '<p style="color: var(--text-muted);">No questions yet.</p>';
+    container.innerHTML = '<div class="q-empty">No questions yet.<br/>Add some from the <strong>Add Question</strong> tab.</div>';
     return;
   }
 
@@ -220,12 +318,19 @@ function refreshQuestionsList(): void {
         <div class="question-card-header">
           <div>
             <div class="question-card-title">${escapeHtml(q.prompt)}</div>
-            <span class="tier-badge tier-${q.tier}">Tier ${q.tier}</span>
+            <span class="tier-badge tier-${q.tier}" style="margin-top:6px;display:inline-flex">Tier ${q.tier}</span>
           </div>
-          <button class="btn btn-danger btn-sm" onclick="deleteQuestion('${q.id}')">Delete</button>
+          <div class="question-card-actions">
+            <button class="btn btn-danger btn-sm" onclick="deleteQuestion('${q.id}')">Delete</button>
+          </div>
         </div>
         <div class="question-card-options">
-          ${q.options.map((o: string, i: number) => `<div>${String.fromCharCode(65 + i)}. ${escapeHtml(o)}${i === q.correct ? ' ✓' : ''}</div>`).join('')}
+          ${q.options.map((o: string, i: number) =>
+            `<div class="question-card-option ${i === q.correct ? 'correct' : ''}">
+              <span class="q-key">${String.fromCharCode(65 + i)}</span>
+              ${escapeHtml(o)}${i === q.correct ? ' ✓' : ''}
+            </div>`
+          ).join('')}
         </div>
       </div>`,
     )
@@ -260,12 +365,15 @@ function refreshFreshnessPanel(): void {
     .map(({ tier, name, icon }) => {
       const count = counts[tier as 1 | 2 | 3];
       const ok = count >= MIN_QUESTIONS_PER_TIER;
-      const poolClass = ok ? 'pool-ok' : count >= 3 ? 'pool-warn' : 'pool-danger';
-      const poolLabel = ok ? '✓ Healthy' : count >= 3 ? '⚠ Thin' : '✗ Critically low';
+      const poolClass = ok ? 'pool-ok' : count >= 3 ? 'pool-warn' : 'pool-bad';
+      const poolLabel = ok ? `${count}/${MIN_QUESTIONS_PER_TIER}` : count >= 3 ? `${count}/${MIN_QUESTIONS_PER_TIER} Thin` : `${count}/${MIN_QUESTIONS_PER_TIER} Low`;
       return `
-        <div class="freshness-row">
-          <div>${icon} ${name}</div>
-          <span class="pool-indicator ${poolClass}">${count}/${MIN_QUESTIONS_PER_TIER} questions — ${poolLabel}</span>
+        <div class="pool-row">
+          <div>
+            <div class="pool-row-label">${icon} ${name}</div>
+            <div class="pool-row-meta">${ok ? 'Healthy — enough variation for random selection' : count >= 3 ? 'Thin — add more for better variety' : 'Too few — add at least ' + (MIN_QUESTIONS_PER_TIER - count) + ' more'}</div>
+          </div>
+          <span class="pool-indicator ${poolClass}">${poolLabel}</span>
         </div>
       `;
     })
@@ -355,8 +463,8 @@ document.getElementById('publish-btn')?.addEventListener('click', () => {
   // Show success
   const status = document.getElementById('publish-status')!;
   status.className = 'alert alert-success';
-  status.innerHTML = `✓ JSON downloaded: <code>${pack.packId}.json</code><br/>
-    <small>Upload to a CORS-enabled server and load with: <code>?pack=https://your-server.com/${pack.packId}.json</code></small>`;
+  status.innerHTML = `<span class="alert-icon">✓</span><span>JSON downloaded: <strong>${pack.packId}.json</strong><br/>
+    Upload to a CORS-enabled server and load with <code>?pack=https://your-server.com/${pack.packId}.json</code></span>`;
 });
 
 // ============ Utilities ============
