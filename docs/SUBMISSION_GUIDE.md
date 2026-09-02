@@ -25,6 +25,15 @@ ls -la dist/
 
 All three commands must complete successfully before proceeding.
 
+### Security / rules checks that matter as much as the test pass
+
+- [ ] No custom pack exposes the answer key over a public URL
+- [ ] Public views contain no secret answer data
+- [ ] `rewardBounds()` matches the maximum possible per-player score
+- [ ] The authoritative rules live in `src/game/rules.ts` and are not bypassed by browser logic
+
+The real source of truth is the rules module. The browser is only a presentation layer and cannot be trusted to award points or reveal hidden answers.
+
 ---
 
 ## Build & Package for Submission
@@ -96,6 +105,8 @@ python -m http.server 8000
 
 3. **Submit**
 
+> Important: this project does not ship a public custom pack URL that contains `correct` values. In production, the answer bank must remain server-side or otherwise behind the trusted gate layer. The browser build intentionally does not fetch public answer-bearing pack files.
+
 ---
 
 ## Submission Description Template
@@ -119,10 +130,13 @@ but never end your run. Reach all 10 rungs and earn a completion bonus. Speed
 multipliers (1.0–1.5x) reward accuracy over raw reflex.
 
 Anti-cheat built in:
-The server holds the answer key, never the browser. Per-player shuffling ensures
-leaked cheat sheets don't transfer between players. Scores are re-derived from
-raw inputs, so clients can't forge points or claim impossible reaction times.
-Only the best single run counts, preventing grinding.
+The trusted rules layer holds the answer key, never the browser. Per-player
+shuffling ensures leaked cheat sheets don't transfer between players. Scores are
+re-derived from raw inputs, so clients can't forge points or claim impossible
+reaction times. Only the best single run counts, preventing grinding.
+
+This is a server-side trust model. A public JSON file that exposes `correct`
+values would break the pitfall that the game is designed to avoid.
 
 Extensible:
 Creators drop in any trivia pack without touching game code. The included
@@ -196,6 +210,9 @@ zip -r -v speedrun-trivia-ladder.zip dist/
 - [ ] ZIP created: `zip -r speedrun-trivia-ladder.zip dist/`
 - [ ] ZIP verified: `unzip -l speedrun-trivia-ladder.zip` shows correct structure
 - [ ] ZIP tested locally by extracting and serving
+- [ ] No public pack URL exposes `correct` answers
+- [ ] `rewardBounds()` matches the maximum possible score
+- [ ] Public views contain no secret answer data
 - [ ] Name is "Speedrun Trivia Ladder"
 - [ ] Category is "Knowledge"
 - [ ] Description covers anti-cheat, knowledge reward, and extensibility

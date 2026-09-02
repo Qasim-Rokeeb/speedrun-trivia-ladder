@@ -454,6 +454,7 @@ export const rules = defineGame<Config, State, Event, Action, PublicView, Player
 
   publicView(state): PublicView {
     const standings = Object.entries(state.players)
+      .filter(([, run]) => run.status !== 'idle')
       .map(([player, run]) => ({
         player,
         score: run.bestScore,

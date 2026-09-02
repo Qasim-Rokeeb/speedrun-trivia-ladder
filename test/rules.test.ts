@@ -135,6 +135,12 @@ describe('speedrun-trivia-ladder', () => {
     expect(everything).not.toContain('"said');
   });
 
+  it('shows no leaderboard entries until a player actually starts a run', () => {
+    const r = freshGame();
+    r.send({ kind: 'join', player: 'you', seed: 7, at: OPENS + 1_000 });
+    expect(r.publicView().standings).toEqual([]);
+  });
+
   it('anti-grinding: only the best single run counts, replays never accumulate', () => {
     const r = freshGame();
     joinStart(r, 'you');

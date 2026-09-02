@@ -1,16 +1,40 @@
 # Custom Pack Feature Guide
 
-The Speedrun Trivia Ladder now supports **custom question packs** at runtime via URL parameters. This means creators can use their own questions without touching any code.
+This project supports custom question packs for local authoring and preview testing, but the browser build is intentionally not configured to fetch a public answer-bearing JSON file from a raw URL.
 
-## Quick Start
+> Critical security rule: a pack that exposes `correct` in a public JSON URL is not allowed. The answer key must remain on the trusted server-side rules layer. If you can fetch it via plain `curl` or a browser URL, it is not safe for live gameplay.
 
-1. **Create a JSON file with your questions** (following the pack schema below)
-2. **Host it on a web server** (CORS-enabled)
-3. **Load the game with your pack**: `https://game.example.com/?pack=https://your-server.com/my-questions.json`
+## What is safe
 
-## Pack JSON Format
+Safe flows for this repository are:
+- local creator preview flow via the in-browser authoring UI and `sessionStorage`
+- a trusted server or gate that loads and validates the pack before the round starts
+- a private config source that never reaches the public browser with the answer bank attached
 
-Your JSON file must follow this exact structure:
+Unsafe flows include:
+- hosting a public JSON file with `correct` values readable by anyone
+- fetching arbitrary pack URLs in the browser with the answer key still attached
+- treating a public browser-fetch as the source of truth for scoring
+
+---
+
+## Local authoring workflow
+
+Use the creator page to build and preview a pack without exposing answers in a public location.
+
+1. Open `creator.html`
+2. Add questions with prompt, four options, and the correct answer
+3. Preview the pack locally in the browser
+4. Validate pool depth before publishing
+5. Export the final config only when you have a trusted server or gate pipeline for runtime loading
+
+This flow keeps the question bank local to the authoring session and does not rely on public URL fetches.
+
+---
+
+## Pack schema for trusted server-side use
+
+When a trusted server or gate loads a pack, the runtime config still uses the same shape as the rules engine. The important point is that the answer bank stays behind the trusted layer, not in a public URL the client can curl.
 
 ```json
 {
@@ -31,177 +55,88 @@ Your JSON file must follow this exact structure:
       "prompt": "What is your project?",
       "options": [
         "Option A",
-        "Option B (correct answer)",
+        "Option B",
         "Option C",
         "Option D"
       ],
       "correct": 1
-    },
-    {
-      "id": "q2",
-      "tier": 2,
-      "prompt": "How does your tokenomics work?",
-      "options": ["A", "B", "C", "D"],
-      "correct": 2
     }
   ]
 }
 ```
 
-## Schema Details
+The browser should only ever receive what it needs to present the question. The authoritative answer key for score verification remains in the trusted rules layer.
 
-### Top-Level Fields
+---
 
-- **`title`** (string, required): The prompt shown in the lobby. Example: "How well do you know crypto & Base?"
-- **`packId`** (string, required): Unique identifier for this pack. Used for seeding question shuffling, so keep it stable across runs.
-- **`completionBonus`** (number, required): Points awarded for reaching all 10 rungs (regardless of penalties). Typical: 500.
-- **`speedBonusCap`** (number, required): Maximum speed bonus multiplier (0 to 1). At 0.5, fastest answers earn +50%. Typical: 0.5.
-- **`rungsPerTier`** (array of 3 numbers, required): Rung count per tier. `[4, 4, 2]` = 4 Warm-up, 4 Climb, 2 Summit = 10 total.
-- **`tierSpecs`** (object with keys "1", "2", "3"): Points and time budget per tier.
-- **`questions`** (array of questions, required): At least 7 questions per tier (more is better to avoid repeats).
+## Required pack rules
 
-### Tier Specifications
+### Top-level fields
 
-Each tier needs:
-- **`points`** (number): Base points for a correct answer on this tier
-- **`budgetMs`** (number): Time budget in milliseconds (e.g., 8000 = 8 seconds)
+- `title` (string): lobby title
+- `packId` (string): stable pack identifier
+- `completionBonus` (number): points for clearing all 10 rungs
+- `speedBonusCap` (number): max speed bonus multiplier; typical value is `0.5`
+- `rungsPerTier` (array of 3 numbers): must total 10
+- `tierSpecs` (object with keys `1`, `2`, `3`): points and timing by tier
+- `questions` (array): all pack questions
 
-Typical progression (from demo):
-- **Tier 1 (Warm-up)**: 100 points, 8 sec — broadly known concepts
-- **Tier 2 (Climb)**: 200 points, 7 sec — moderately specific knowledge
-- **Tier 3 (Summit)**: 400 points, 6 sec — deep/expert knowledge
+### Question object
 
-### Question Object
+- `id` (string): unique question identifier
+- `tier` (1, 2, or 3): difficulty tier
+- `prompt` (string): visible to the player
+- `options` (array of 4 strings): private answer set for the player view only when the question is live
+- `correct` (number): canonical answer index, but this value must remain behind the trusted rules boundary in production
 
-```json
-{
-  "id": "unique-id",
-  "tier": 1,
-  "prompt": "The question text",
-  "options": ["Option A", "Option B", "Option C", "Option D"],
-  "correct": 1
-}
-```
+### Pool and freshness
 
-- **`id`** (string): Unique question ID (used for trace logging and memoization checks)
-- **`tier`** (1, 2, or 3): Difficulty tier (1 = easy, 3 = hard)
-- **`prompt`** (string): The question text
-- **`options`** (array of 4 strings): The four multiple choice options
-- **`correct`** (number): Index (0–3) of the correct option in the canonical order
+- target at least 7 questions per tier, and more is better for varied runs
+- never repeat a question within a single run
+- enforce a minimum pool before publication to avoid stale packs and repeated questions across many launches
 
-## Best Practices
+---
 
-### Content Guidelines
+## Why public pack URLs are intentionally disabled
 
-- **Tier 1 (Warm-up)**: Answerable from your homepage or white paper
-  - Example: "What blockchain does your project use?"
-- **Tier 2 (Climb)**: Requires 10+ minutes of reading (docs, tokenomics, roadmap)
-  - Example: "What is the max supply of your token?"
-- **Tier 3 (Summit)**: Requires active engagement (community, lore, deep specifics)
-  - Example: "Which team member proposed the liquidity mechanism?"
+This browser build intentionally refuses arbitrary `?pack=https://...` URLs.
 
-### Question Pool
+That is not a limitation for the gameplay itself. It is a protection measure.
 
-- **Aim for 7–10 questions per tier minimum** (demo has 8/8/9)
-- Never repeat a question in the same run
-- The shuffling is deterministic per player, so leaked answer traces won't transfer to others
-- Avoid ambiguous answers — all 4 options should be clearly distinct
+A public JSON file with plain `correct` indexes is equivalent to shipping a complete answer key to anyone who can access the URL. That directly contradicts the game-mode trust model and undermines the core anti-cheat claim.
 
-### Hosting
+For production, the pack must be loaded and validated in a trusted environment before round config is created, which keeps the answer bank off the public client surface.
 
-- **CORS headers**: Your JSON endpoint must allow cross-origin requests (`Access-Control-Allow-Origin: *`)
-- **Content-Type**: Serve with `Content-Type: application/json`
-- **SSL/HTTPS**: Required (most browsers block mixed content)
+---
 
-Example Node.js + Express setup:
-```js
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  next();
-});
+## Validation rules
 
-app.get('/my-pack.json', (req, res) => {
-  res.json(myPackConfig);
-});
-```
+The creator preview and trusted server-side config should validate:
+- title and packId are present
+- each question has a valid `id`, `tier`, `prompt`, and 4 option strings
+- each question has a valid `correct` index if a trusted server is building runtime config
+- each tier spec includes `points` and `budgetMs`
+- `rungsPerTier` contains exactly 3 positive values that sum to 10
 
-## Validation
+If validation fails in the browser preview flow, fall back to the demo pack and show a warning instead of silently continuing with a broken pack.
 
-The game validates your pack at load time:
-- ✅ Must have title, packId, and at least 1 question
-- ✅ Each question must have id, tier (1–3), prompt, 4 options, and a correct index (0–3)
-- ✅ Each tier spec must have points and budgetMs
-- ✅ rungsPerTier must be 3 numbers that sum to 10
+---
 
-If validation fails, the game **silently falls back to the demo pack** with a console warning.
+## Recommended production pattern
 
-**Always test your JSON locally before deployment.**
+Use this pattern for production:
 
-## Loading a Custom Pack
+1. Author the pack locally in the creator UI.
+2. Upload the authored pack to a trusted backend or gate configuration service.
+3. Load and validate it server-side before the round starts.
+4. Hand only the minimal player-facing config to the browser.
+5. Keep `correct` values behind the rules engine and never expose them in public URLs.
 
-### Via URL Parameter
+This preserves the intended Game Mode trust boundary and keeps custom content useful without turning it into a public answer sheet.
 
-```
-https://game.flaunch.gg/?pack=https://your-cdn.com/my-pack.json
-```
+---
 
-The game will:
-1. Fetch the JSON from that URL
-2. Validate the structure
-3. Load your questions
-4. Log to console: `Loaded custom pack: my-pack-v1 with 25 questions`
-
-### Fallback Behavior
-
-If the URL load fails (network error, bad JSON, validation fail):
-- Game logs a warning to console
-- Automatically uses the demo pack
-- User sees normal Warm-up/Climb/Summit questions
-
-### Testing Locally
-
-For local development, use `pnpm dev` and pass a local URL:
-```
-http://localhost:5173/?pack=http://localhost:3000/my-pack.json
-```
-
-Or use a file-based pack in TypeScript:
-```ts
-// src/game/packs/custom.ts
-export const customPack: Config = { /* ... */ };
-
-// src/play.ts
-import { customPack } from './game/packs/custom.js';
-```
-
-## Maximizing Score
-
-The scoring system encourages **knowledge + speed**:
-
-```
-Score per question = base_points × (1 + speed_bonus_multiplier)
-  where multiplier = (timeRemaining / budget) × speedBonusCap
-  capped at [1.0, 1 + speedBonusCap]
-```
-
-Example (Tier 1, speedBonusCap=0.5):
-- Answer in 0 sec (instant): 100 × 1.5 = **150 points**
-- Answer in 4 sec (halfway): 100 × 1.25 = **125 points**
-- Answer in 8 sec (timeout): 0 points (wrong/timed out)
-
-**Knowledge matters most**: A fast wrong answer earns 0, a slow correct answer earns up to 150.
-
-## Anti-Cheat Properties
-
-Even with a custom pack, anti-cheat is built-in:
-
-✅ **Server-side validation**: Correct answers are verified by the server, never sent to the client  
-✅ **Per-player shuffling**: Each player sees a different option order for the same question  
-✅ **Deterministic seeding**: Shuffling is based on packId + player seed, so identical setups produce identical (but secret) orders  
-✅ **Trace logging**: All answers are recorded and can be replayed to verify scoring  
-✅ **Delta scoring**: Only the best single run counts; replays never accumulate points  
-
-## Example: Minimal Custom Pack
+## Example: safe preview pack (local only)
 
 ```json
 {
@@ -224,39 +159,24 @@ Even with a custom pack, anti-cheat is built-in:
 }
 ```
 
-(This only has 4 questions, so it would fail validation. Add at least 7 per tier.)
-
-## Troubleshooting
-
-### Custom pack isn't loading
-- **Check console**: Open browser DevTools → Console for warnings
-- **CORS error**: Ensure your server sends `Access-Control-Allow-Origin: *` header
-- **Network error**: Verify URL is correct and server is responding with HTTP 200
-- **JSON error**: Validate JSON syntax using `jsonlint.com`
-
-### Questions aren't my custom ones
-- Check the browser console for fallback message
-- Verify the JSON structure matches the schema exactly
-- Test the JSON URL directly in your browser to see the response
-
-### Same questions appear multiple times
-- If your pack has fewer than 7 questions per tier, repeats are unavoidable
-- Add more questions or adjust `rungsPerTier` to match pool size
-
-### Scoring seems wrong
-- Verify `tierSpecs` points and budgetMs are set correctly
-- Remember: wrong answers earn 0 points (no negative scoring)
-- Speed bonus caps at `1 + speedBonusCap` (e.g., 1.5x for 0.5 cap)
-
-## Future Enhancements
-
-Planned (not yet implemented):
-- Creator UI for pack management (upload/edit in Flaunch dashboard)
-- Multiple packs per launch (selector screen in lobby)
-- Analytics dashboard (question difficulty, player performance)
-- Leaderboard/ranking by pack
-- Pack versioning and archiving
+This example is safe only in a local preview or a trusted private config pipeline. It must not be exposed to the public browser as a standalone URL.
 
 ---
 
-**Questions?** Refer to the demo pack in `src/game/packs/demo.ts` or review the type definitions in `src/game/rules.ts`.
+## Troubleshooting
+
+### Pack loads to the demo instead of the custom content
+- you are using a public URL flow, which is intentionally disabled
+- use the creator preview flow or a trusted server-side loader
+
+### The game still looks like it is using a public answer bank
+- verify the pack is not being fetched directly from a public URL
+- ensure the answer key stays behind the trusted rules layer
+
+### Scoring seems wrong
+- verify `tierSpecs` and `speedBonusCap`
+- confirm the pack is validated in the trusted rules environment before round start
+
+---
+
+**Questions?** Review the demo pack in `src/game/packs/demo.ts` and the authoritative rules in `src/game/rules.ts`.

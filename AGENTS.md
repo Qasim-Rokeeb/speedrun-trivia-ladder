@@ -21,6 +21,17 @@ The browser proposes actions. It never awards points.
 The gate runs `src/game/rules.ts` and stores every accepted event. A replay of the same commands
 must always produce the same state and score.
 
+This repo's actual refusal codes are the ladder-specific ones defined in `src/game/rules.ts`, including
+`ladder.not_joined`, `ladder.window_closed`, `ladder.not_active`, `ladder.question_mismatch`,
+`ladder.already_answered`, `ladder.already_active`, and `ladder.timed_out`. Keep these names stable.
+
+The answer-secrecy model for this game is intentionally strict: the public view never exposes the
+correct answer, and the player view only reveals the current question and its choice set for that
+specific player. This is a per-player immediate reveal, not a delayed public reveal after a later wake.
+
+Custom packs are for local authoring and preview use only. A public `?pack=https://...json` URL that
+contains the answer key is not allowed. The browser build must never fetch a public answer bank.
+
 ## Use the development loop
 
 Run these commands:

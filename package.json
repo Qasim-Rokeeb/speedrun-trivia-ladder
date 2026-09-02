@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build": "vite build",
     "test": "gamemode check src/game/rules.ts && vitest run",
     "check": "gamemode check src/game/rules.ts",
     "typecheck": "tsc --noEmit"

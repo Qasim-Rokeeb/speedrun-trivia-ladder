@@ -83,34 +83,21 @@ async function loadConfig(): Promise<Config> {
   }
   
   const packUrl = params.get('pack');
-  
-  if (!packUrl) {
-    // No custom pack: use demo
+
+  // Public custom-pack URLs are intentionally disabled in the browser build.
+  // A public JSON file containing answer keys is a trust breach and defeats the server-side
+  // scoring model described in the Game Mode rules. Use the creator preview flow for local
+  // authoring and keep answer material on the trusted server/gate side for production.
+  if (packUrl) {
+    console.warn(
+      'Public custom pack URLs are disabled in this browser build. The answer key must stay server-side; ' +
+      'use the creator preview flow or a trusted server endpoint, not a public JSON URL.',
+    );
     return demoPack;
   }
-  
-  try {
-    // Fetch the custom pack
-    const response = await fetch(packUrl);
-    if (!response.ok) {
-      console.warn(`Failed to load pack from ${packUrl}: HTTP ${response.status}`);
-      return demoPack;
-    }
-    
-    const data = await response.json();
-    
-    // Validate the pack structure
-    if (!isValidConfig(data)) {
-      console.warn(`Custom pack from ${packUrl} failed validation. Using demo pack.`, data);
-      return demoPack;
-    }
-    
-    console.log(`Loaded custom pack: ${data.packId} with ${data.questions.length} questions`);
-    return data;
-  } catch (err) {
-    console.warn(`Error loading custom pack from ${packUrl}:`, err);
-    return demoPack;
-  }
+
+  // No custom pack: use demo
+  return demoPack;
 }
 
 /**

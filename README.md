@@ -1,113 +1,142 @@
 # Speedrun Trivia Ladder
 
-A Flaunch **Game Mode** in the **Knowledge** category: a timed trivia ladder where players race up
-10 escalating rungs before the clock runs out. Speed + accuracy determine the score, and the score
-maps to the ETH-spending allowance a player earns on a launch's bonding curve.
+A knowledge-based launch gate for the Flaunch ecosystem and Game Mode. Players climb 10 timed trivia rungs about a project, earning points and a launch allowance through informed participation rather than raw reflexes.
 
-The browser owns the game experience. Pure, server-authoritative rules decide which actions earn
-points — the correct answer key never ships to the client.
+**Live demo:** https://speedrun-trivia-ladder.vercel.app/
 
-## Play it
+**References:** [Flaunch](https://flaunch.gg/) | [Game Mode SDK](https://github.com/flayerlabs/gamemode-sdk) | [Game Mode spec](https://github.com/flayerlabs/gamemode-spec)
+
+## Why it exists
+
+Most game-based launch gates reward latency, reaction time, or hardware advantage. Speedrun Trivia Ladder explores a different gate: reward the community member who has read the docs, followed the roadmap, remembers the project story, and understands what they are participating in.
+
+The game is designed as a reusable Flaunch Game Mode, not a browser-only quiz. It combines escalating knowledge checks with time pressure, soft failures, replayable scoring, and a server-authoritative rules model.
+
+## How it works
+
+The ladder has three difficulty tiers:
+
+- **Warm-up:** rungs 1-4, 8-second question budget
+- **Climb:** rungs 5-8, 7-second question budget
+- **Summit:** rungs 9-10, 6-second question budget
+
+Correct answers award tier points plus a capped speed bonus. A wrong answer or timeout drops the effective tier value, but the run continues. Reaching the summit earns the completion bonus. Only the best run counts, so replaying weak attempts cannot stack allowance.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Player browser] -->|room.send action| B[Game Mode room]
+    B --> C[Trusted Flaunch gate]
+    C --> D[src/game/rules.ts]
+    D --> E[parse, decide, evolve]
+    E --> F[Accepted events and awards]
+    F --> G[Public view]
+    F --> H[Private player view]
+    G --> A
+    H --> A
+    I[pnpm dev] --> J[Local mock room]
+    J --> D
+```
+
+The browser proposes actions and renders views. The rules module decides validity, scoring, progression, timing, answer checks, secrecy, and rewards. The answer key is never part of the public view, and the client cannot submit a score.
+
+Flaunch provides the live Game Mode execution layer; this project does not operate a separate application server. The rules are pure deterministic TypeScript so accepted events can be stored and command sequences can be replayed consistently. Wallets, private keys, RPC calls, transaction construction, and launch authorization remain outside the game code.
+
+## Gameplay flow
+
+```mermaid
+sequenceDiagram
+    participant Player
+    participant Browser
+    participant Room
+    participant Rules
+
+    Player->>Browser: Join the ladder
+    Browser->>Room: Send join action
+    Room->>Rules: Validate and seed run
+    Rules-->>Browser: Player view with current question
+    Player->>Browser: Choose an answer
+    Browser->>Room: Send questionId and choice index
+    Room->>Rules: Validate action or timeout
+    Rules-->>Room: Advance, soft-fail, settle, or refuse
+    Room-->>Browser: Updated views and score
+    Browser-->>Player: Next rung or run summary
+```
+
+## Fairness and trust
+
+- Scores are derived from raw answer actions inside `decide()`; clients never submit points.
+- Public views contain leaderboard and round state, but not the correct answer.
+- `playerView()` exposes only the current question and choices for that player.
+- Per-player seeded shuffling prevents a fixed option-order cheat sheet from transferring between players.
+- Timers use authoritative command timestamps and server wake events.
+- Replays are deterministic, and only the highest single run contributes allowance.
+- `rewardBounds()` declares the maximum possible score to the platform.
+
+## Creator packs
+
+[src/creator.ts](src/creator.ts) provides local authoring, tier-depth checks, and preview support. A creator can write project-specific questions without changing the rules engine. See [CUSTOM_PACK_GUIDE.md](CUSTOM_PACK_GUIDE.md) for the pack schema and the security boundary.
+
+Public answer-bearing pack URLs are intentionally disabled. A pack containing `correct` values must be loaded and validated by a trusted gate or server-side configuration process; it must never be exposed as a public browser-fetchable JSON file.
+
+## Getting started
+
+Requirements: Node.js and pnpm.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-The local room uses the real rules (`src/game/rules.ts`) with a mock economy — no server, chain or
-wallet needed. The included demo pack (`src/game/packs/demo.ts`) covers general crypto, Base-ecosystem
-and Flaunch-specific questions across three tiers.
+Open the local Vite URL to play. The development build uses the real rules in a local mock room and needs no chain, wallet, or custom server.
 
-## How it plays
-
-- A run is **10 rungs** in **3 tiers**: Warm-up (rungs 1–4), Climb (rungs 5–8), Summit (rungs 9–10).
-- Each question has a per-tier time budget. Answer fast and right for a **speed multiplier up to +50%**.
-- **Soft-fail**: a wrong answer never ends the run — it drops your effective tier (and point value)
-  while you keep climbing. Everyone can reach the summit; how *well* you climb is the contest.
-- Reaching all 10 rungs pays a **+500 completion bonus**, even after tier drops.
-- **Anti-grinding**: only your **best single run** in a round counts toward allowance. Points are
-  settled at run end as a delta, so replaying can never accumulate.
-
-## Trust model (why judges can trust the score)
-
-- The **canonical answer key lives only in the rules module** (server state). It is never in a view.
-- A player sends only `{ questionId, chosen }` — the option they picked. The server re-derives the
-  score from that raw input, so a modified client cannot forge a score or claim impossible reaction times.
-- Question order and option order are **shuffled per player** (seeded), so a leaked "press C" cheat
-  sheet does not transfer between players.
-- Timing is `command.at` (authoritative); per-question deadlines are enforced server-side by wakes.
-
-## Question packs (how a creator drops in their own questions)
-
-**No code changes needed.** Creators supply their own questions via a custom pack JSON hosted on any
-web server. Load it with `?pack=https://your-cdn.com/my-pack.json` and the game uses your questions.
-
-For step-by-step instructions and best practices, see **[CUSTOM_PACK_GUIDE.md](./CUSTOM_PACK_GUIDE.md)**.
-
-A pack is built from:
-
-```ts
-interface Question {
-  id: string;          // unique id
-  tier: 1 | 2 | 3;     // authored difficulty
-  prompt: string;      // the question text
-  options: string[];   // 4 options, canonical order
-  correct: number;     // index into options — server-authoritative, never sent to the client
-}
-
-interface Config {
-  title: string;          // shown on the lobby ("How well do you know [Project]?")
-  packId: string;         // stable pack id (used to seed per-player shuffling)
-  questions: Question[];
-  tierSpecs: Record<1|2|3, { points: number; budgetMs: number }>;
-  rungsPerTier: [number, number, number]; // e.g. [4, 4, 2]
-  completionBonus: number;                 // e.g. 500
-  speedBonusCap: number;                   // top of speed multiplier, e.g. 0.5
-}
-```
-
-To ship the demo as a custom pack, replace `demoPack` in `src/play.ts` with your own `Config`, or
-follow the shape above. Author guidance baked into the tiers:
-
-- **Tier 1** — answerable from a project's homepage.
-- **Tier 2** — answerable by a moderately engaged holder (docs, tokenomics, AMM/DeFi concepts).
-- **Tier 3** — answerable only by someone active in the project's community (lore, deep specifics).
-
-The default pack ships in `src/game/packs/demo.ts`.
-
-## Evidence / checks
+Run the verification commands in another terminal:
 
 ```bash
-pnpm test        # rules purity check + scoring / secrecy / replay / anti-grind tests
-pnpm typecheck   # whole project
+pnpm test
+pnpm typecheck
+pnpm build
 ```
 
-Tests cover: flawless-run scoring (3500 max), soft-fail tier drops, completion bonus, refusal of
-invalid/repeated/mismatched answers, no answer key in the public view, best-of-session
-anti-grinding, timeout soft-fails, round-close settling, deterministic replay, and per-player
-question-order divergence.
+`pnpm test` runs the purity check and Vitest suite. `pnpm build` creates the deployable static bundle in `dist/`, including the play, creator, and preview entry pages.
 
-## Submit to Flaunch
+## Project layout
 
-**Ready to submit?** See the step-by-step guide:
+```text
+.
+├── src/
+│   ├── game/
+│   │   ├── packs/
+│   │   │   └── demo.ts          # bundled 25-question sample pack
+│   │   └── rules.ts             # authoritative state, scoring, timing, and views
+│   ├── creator.ts                # local pack authoring and validation UI
+│   └── play.ts                   # player UI, room subscriptions, and actions
+├── test/
+│   └── rules.test.ts             # scoring, replay, secrecy, and anti-grind tests
+├── index.html                    # main play experience
+├── creator.html                  # creator authoring experience
+├── preview.html                  # local preview experience
+├── CUSTOM_PACK_GUIDE.md          # custom pack schema and security guidance
+├── docs/
+│   ├── SUBMISSION_GUIDE.md       # packaging and upload notes
+│   └── SUBMISSION_CHECKLIST.md   # readiness evidence and verification checklist
+├── package.json                  # scripts and SDK dependencies
+├── vite.config.ts                # Vite build configuration
+└── tsconfig.json                 # TypeScript configuration
+```
 
-- **[SUBMISSION_GUIDE.md](./SUBMISSION_GUIDE.md)** — Exact instructions for packaging and uploading
-- **[SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md)** — Verify all requirements are met
-- **[SUBMISSION_ANALYSIS.md](./SUBMISSION_ANALYSIS.md)** — Detailed analysis against Flaunch requirements
+## Flaunch submission
 
-**Quick checklist before upload:**
-1. `pnpm test` passes (all 13 tests)
-2. `pnpm typecheck` passes (no errors)
-3. `pnpm exec vite build` succeeds
-4. Create ZIP: `zip -r speedrun-trivia-ladder.zip dist/`
-5. Upload at `flaunch.gg/game-mode/create` with:
-   - **Name:** Speedrun Trivia Ladder
-   - **Category:** Knowledge
-   - **Description:** See template in SUBMISSION_GUIDE.md
+- **Track:** Knowledge
+- **Name:** Speedrun Trivia Ladder
+- **Source:** this repository and its [authoritative rules](src/game/rules.ts)
+- **Demo:** https://speedrun-trivia-ladder.vercel.app/
+- **Packaging notes:** [docs/SUBMISSION_GUIDE.md](docs/SUBMISSION_GUIDE.md)
+- **Readiness evidence:** [docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md)
 
-## Connect a live gate
+The repository includes a local mock-room integration. It does not include a live gate harness; a production connection should follow the official [Flaunch live-gate guide](https://github.com/flayerlabs/gamemode-sdk/blob/main/docs/guides/run-a-gate.md) rather than introducing a second protocol.
 
-Finish against the mock room first; when a real launch runs through the game, follow the
-[gate guide](https://github.com/flayerlabs/gamemode-sdk/blob/main/docs/guides/run-a-gate.md). The
-game never handles a wallet, key or transaction — those live in the SDK/pool layer.
+## Acknowledgments
 
+Built for the Flaunch Game Mode ecosystem and its Knowledge track. Thanks to the Flaunch team, SDK authors, and playtesters whose feedback shaped the rules, fairness model, and creator workflow.
